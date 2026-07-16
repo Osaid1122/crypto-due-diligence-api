@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: crypto-due-diligence-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.5
+      - key: GOPLUS_APP_KEY
+        sync: false
+      - key: GOPLUS_APP_SECRET
+        sync: false
