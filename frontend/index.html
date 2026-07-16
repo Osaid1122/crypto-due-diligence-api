@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Due Diligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Theme tokens — unchanged from the original palette ── */
+  :root{
+    --bg:#0B1220;
+    --panel:#121B2E;
+    --panel-2:#0E1626;
+    --text:#E8EDF4;
+    --muted:#8593AC;
+    --line:#22304A;
+    --teal:#35D0BA;
+    --amber:#F5A623;
+    --red:#FF5C5C;
+    --critical:#FF3B6B;
+    --radius:14px;
+    --radius-sm:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(53,208,186,0.08), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:48px 20px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+
+  /* ── Header ── */
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .eyebrow::before{
+    content:'';width:6px;height:6px;border-radius:50%;
+    background:var(--teal);
+    box-shadow:0 0 8px var(--teal);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:clamp(26px, 5vw, 32px);
+    font-weight:700;
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  .sub{color:var(--muted);font-size:14.5px;margin:0 0 32px;line-height:1.6;max-width:52ch;}
+
+  /* ── Panels ── */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    margin-bottom:16px;
+    animation:rise .35s ease both;
+  }
+  @keyframes rise{
+    from{opacity:0; transform:translateY(6px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:0.1em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 14px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+
+  /* ── Form ── */
+  .form-row{display:flex;gap:10px;}
+  select, input{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:var(--radius-sm);
+    padding:13px 14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13.5px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s, background-color .15s;
+  }
+  select:hover, input:hover{border-color:#334467;}
+  select:focus, input:focus{
+    border-color:var(--teal);
+    box-shadow:0 0 0 3px rgba(53,208,186,0.15);
+  }
+  select{
+    flex:0 0 168px;cursor:pointer;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238593AC'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    appearance:none;
+    padding-right:32px;
+  }
+  input{flex:1;min-width:0;}
+  input::placeholder{color:#4C5A75;}
+  input.invalid{border-color:var(--red);box-shadow:0 0 0 3px rgba(255,92,92,0.12);}
+
+  button{
+    width:100%;
+    margin-top:12px;
+    background:var(--teal);
+    color:#06231D;
+    border:none;
+    border-radius:var(--radius-sm);
+    padding:14px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    transition:filter .15s, transform .08s, box-shadow .2s;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  button:hover:not(:disabled){filter:brightness(1.1); box-shadow:0 4px 18px rgba(53,208,186,0.25);}
+  button:active:not(:disabled){transform:scale(0.985);}
+  button:disabled{opacity:0.6;cursor:not-allowed;filter:none;box-shadow:none;}
+
+  /* ── Empty state ── */
+  .empty-state{
+    text-align:center;
+    padding:16px 12px 8px;
+    color:var(--muted);
+  }
+  .empty-state ol{
+    list-style:none;margin:16px 0 0;padding:0;
+    display:flex;flex-direction:column;gap:10px;
+    text-align:left;max-width:340px;margin-inline:auto;
+  }
+  .empty-state li{
+    display:flex;align-items:center;gap:10px;
+    font-size:13.5px;color:var(--text);
+  }
+  .empty-state li .num{
+    flex:0 0 22px;height:22px;border-radius:6px;
+    background:var(--panel-2);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--teal);
+  }
+
+  /* ── Error state ── */
+  .error-box{
+    background:rgba(255,92,92,0.07);
+    border:1px solid rgba(255,92,92,0.3);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:16px;
+    display:none;
+    animation:rise .3s ease both;
+  }
+  .error-title{
+    color:var(--red);font-family:'Space Grotesk',sans-serif;
+    font-weight:600;font-size:14px;margin:0 0 8px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .error-reasons{
+    margin:0;padding-left:0;list-style:none;
+    font-size:13px;color:var(--muted);line-height:1.9;
+  }
+  .error-reasons li::before{content:'•  ';color:var(--red);}
+
+  /* ── Result ── */
+  #result{display:none;}
+
+  .result-header{display:flex;align-items:center;gap:20px;margin-bottom:8px;}
+
+  .gauge-wrap{position:relative;flex:0 0 auto;width:104px;height:104px;}
+  .gauge-wrap svg{transform:rotate(-90deg);}
+  .gauge-track{fill:none;stroke:var(--line);stroke-width:9;}
+  .gauge-fill{
+    fill:none;stroke-width:9;stroke-linecap:round;
+    transition:stroke-dashoffset 1.1s cubic-bezier(.22,.9,.3,1), stroke 0.5s ease;
+  }
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge-score{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;line-height:1;transition:color .5s ease;}
+  .gauge-max{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;}
+
+  .token-meta{flex:1;min-width:0;}
+  .token-name{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;margin:0 0 4px;word-break:break-word;}
+  .token-symbol{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .risk-badge{
+    display:inline-flex;align-items:center;gap:6px;
+    margin-top:8px;padding:4px 10px;border-radius:20px;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+    letter-spacing:0.04em;text-transform:uppercase;
+    transition:all .4s ease;
+  }
+
+  .confidence-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);}
+  .confidence-row{
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+  }
+  .confidence-bar{flex:1;height:5px;background:var(--panel-2);border-radius:3px;margin:0 12px;overflow:hidden;}
+  .confidence-fill{height:100%;background:linear-gradient(90deg, var(--teal), #6BE0CE);border-radius:3px;width:0;transition:width 1s cubic-bezier(.22,.9,.3,1);}
+  .confidence-note{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0 0;}
+
+  .verdict-text{font-size:14.5px;line-height:1.65;color:var(--text);margin:0;}
+
+  /* Signals — warnings and positives visually distinct but same list styling */
+  .signal-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
+  .signal-list li{
+    display:flex;align-items:flex-start;gap:10px;font-size:13.5px;line-height:1.45;
+    padding:2px 0;
+  }
+  .signal-icon{flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-weight:600;margin-top:1px;font-size:13px;}
+  .signal-icon.ok{color:var(--teal);}
+  .signal-icon.warn{color:var(--amber);}
+  .panel.warnings{border-color:rgba(245,166,35,0.25);}
+  .panel.positives{border-color:rgba(53,208,186,0.2);}
+  .signal-empty{color:var(--muted);font-size:13px;font-style:normal;}
+
+  .checks-list{list-style:none;margin:0;padding:0;counter-reset:step;}
+  .checks-list li{
+    counter-increment:step;display:flex;gap:12px;
+    font-size:13.5px;line-height:1.5;padding:10px 0;border-bottom:1px solid var(--line);
+  }
+  .checks-list li:last-child{border-bottom:none;}
+  .checks-list li::before{
+    content:counter(step);flex:0 0 20px;height:20px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+  }
+
+  /* ── Technical details ── */
+  details.tech{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 22px;
+    margin-bottom:16px;
+  }
+  details.tech summary, details.raw summary{
+    cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;
+    list-style:none;
+  }
+  summary::-webkit-details-marker{display:none;}
+  summary::after{
+    content:'▾';display:inline-block;transition:transform .2s ease;color:var(--muted);
+  }
+  details[open] summary::after{transform:rotate(180deg);}
+
+  .tech-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;
+    margin-top:16px;
+  }
+  .tech-item{border-top:1px solid var(--line);padding-top:10px;}
+  .tech-item .k{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;
+  }
+  .tech-item .v{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--text);
+    word-break:break-all;
+  }
+  .tech-item .v.yes{color:var(--amber);}
+  .tech-item .v.no{color:var(--teal);}
+
+  details.raw{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-top:16px;
+  }
+  details.raw pre{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+    overflow-x:auto;margin:12px 0 0;line-height:1.6;
+  }
+
+  .footer-note{
+    text-align:center;color:var(--muted);font-size:11.5px;
+    font-family:'IBM Plex Mono',monospace;margin-top:28px;letter-spacing:0.02em;
+  }
+
+  .spinner{
+    width:15px;height:15px;border-radius:50%;
+    border:2px solid rgba(6,35,29,0.3);border-top-color:#06231D;
+    display:inline-block;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ── Responsive ── */
+  @media (max-width:520px){
+    body{padding:32px 14px 60px;}
+    .form-row{flex-direction:column;}
+    select{flex:1;}
+    .result-header{flex-direction:column;align-items:flex-start;gap:14px;}
+    .gauge-wrap{align-self:center;}
+    .tech-grid{grid-template-columns:1fr;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Live on-chain scan</div>
+  <h1>Crypto Due Diligence</h1>
+  <p class="sub">Paste a token contract address. We pull real security signals, score them with a deterministic rules engine, then have AI explain what they mean — never the other way around.</p>
+
+  <div class="panel">
+    <div class="form-row">
+      <select id="chainSelect" aria-label="Blockchain">
+        <option value="">Loading chains…</option>
+      </select>
+      <input id="addressInput" type="text" placeholder="0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" spellcheck="false" autocomplete="off">
+    </div>
+    <button id="scanBtn" onclick="runScan()">Scan token</button>
+  </div>
+
+  <div class="error-box" id="errorBox">
+    <p class="error-title">⚠ Unable to analyze this contract</p>
+    <ul class="error-reasons" id="errorReasons"></ul>
+  </div>
+
+  <div class="panel empty-state" id="emptyState">
+    <ol>
+      <li><span class="num">1</span> Paste a token contract address.</li>
+      <li><span class="num">2</span> Choose the blockchain.</li>
+      <li><span class="num">3</span> Press Scan.</li>
+    </ol>
+  </div>
+
+  <div id="result">
+
+    <!-- Risk gauge + level + confidence -->
+    <div class="panel">
+      <div class="result-header">
+        <div class="gauge-wrap">
+          <svg width="104" height="104" viewBox="0 0 104 104">
+            <circle class="gauge-track" cx="52" cy="52" r="44"></circle>
+            <circle class="gauge-fill" id="gaugeFill" cx="52" cy="52" r="44"
+              stroke-dasharray="276.5" stroke-dashoffset="276.5"></circle>
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-score" id="scoreText">0</div>
+            <div class="gauge-max">/ 100</div>
+          </div>
+        </div>
+        <div class="token-meta">
+          <p class="token-name" id="tokenName">—</p>
+          <span class="token-symbol" id="tokenSymbol">—</span>
+          <div><span class="risk-badge" id="riskBadge">—</span></div>
+        </div>
+      </div>
+      <div class="confidence-block">
+        <div class="confidence-row">
+          <span>DATA CONFIDENCE</span>
+          <div class="confidence-bar"><div class="confidence-fill" id="confidenceFill"></div></div>
+          <span id="confidenceText">0%</span>
+        </div>
+        <p class="confidence-note" id="confidenceNote">Confidence reflects how complete the available on-chain security data is.</p>
+      </div>
+    </div>
+
+    <!-- AI Verdict -->
+    <div class="panel">
+      <p class="section-label">AI Verdict</p>
+      <p class="verdict-text" id="verdictText">—</p>
+    </div>
+
+    <!-- Warning signals -->
+    <div class="panel warnings">
+      <p class="section-label">Warning signals</p>
+      <ul class="signal-list" id="warningList"></ul>
+    </div>
+
+    <!-- Positive signals -->
+    <div class="panel positives">
+      <p class="section-label">Positive signals</p>
+      <ul class="signal-list" id="positiveList"></ul>
+    </div>
+
+    <!-- Recommended checks -->
+    <div class="panel">
+      <p class="section-label">Recommended checks</p>
+      <ol class="checks-list" id="checksList"></ol>
+    </div>
+
+    <!-- Technical details -->
+    <details class="tech">
+      <summary>Technical details</summary>
+      <div class="tech-grid" id="techGrid"></div>
+      <details class="raw">
+        <summary>Raw GoPlus response</summary>
+        <pre id="rawJson"></pre>
+      </details>
+    </details>
+
+  </div>
+
+  <p class="footer-note">Built for OKX.AI Genesis Hackathon · Deterministic scoring, AI-explained</p>
+
+</div>
+
+<script>
+// Point this at your running FastAPI instance.
+// Auto-detects local dev vs. deployed environments.
+// After deploying the backend to Render, replace the string below with your
+// actual Render URL (e.g. "https://crypto-due-diligence-api.onrender.com").
+const PRODUCTION_API_BASE = "https://YOUR-RENDER-APP.onrender.com";
+const isLocal = window.location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const API_BASE = isLocal ? "http://127.0.0.1:8000" : PRODUCTION_API_BASE;
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+const riskColors = {
+  Low: getComputedStyle(document.documentElement).getPropertyValue('--teal').trim(),
+  Medium: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim(),
+  High: getComputedStyle(document.documentElement).getPropertyValue('--red').trim(),
+  Critical: getComputedStyle(document.documentElement).getPropertyValue('--critical').trim(),
+};
+
+const LOADING_STAGES = [
+  'Scanning…',
+  'Fetching on-chain data…',
+  'Running security rules…',
+  'Generating explanation…',
+];
+let loadingInterval = null;
+
+// ── Chain dropdown — built from the backend's /chains response, not hardcoded ──
+async function loadChains(){
+  const select = document.getElementById('chainSelect');
+  try {
+    const res = await fetch(`${API_BASE}/chains`);
+    if(!res.ok) throw new Error('chains fetch failed');
+    const data = await res.json();
+
+    const groups = {};
+    data.chains.forEach(c => {
+      (groups[c.ecosystem] = groups[c.ecosystem] || []).push(c);
+    });
+
+    select.innerHTML = '';
+    Object.entries(groups).forEach(([ecosystem, chains]) => {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = ecosystem;
+      chains.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        optgroup.appendChild(opt);
+      });
+      select.appendChild(optgroup);
+    });
+  } catch(e) {
+    // Fallback so the tool still works if /chains is unreachable
+    select.innerHTML = `
+      <option value="1">Ethereum</option>
+      <option value="56">BNB Chain</option>
+      <option value="137">Polygon</option>
+      <option value="42161">Arbitrum</option>
+      <option value="196">X Layer</option>`;
+  }
+}
+loadChains();
+
+function showError(reasons){
+  document.getElementById('errorReasons').innerHTML =
+    reasons.map(r => `<li>${r}</li>`).join('');
+  document.getElementById('errorBox').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+}
+
+function hideError(){
+  document.getElementById('errorBox').style.display = 'none';
+}
+
+function startLoading(btn){
+  let i = 0;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>${LOADING_STAGES[0]}`;
+  loadingInterval = setInterval(() => {
+    i = (i + 1) % LOADING_STAGES.length;
+    btn.innerHTML = `<span class="spinner"></span>${LOADING_STAGES[i]}`;
+  }, 1100);
+}
+
+function stopLoading(btn){
+  clearInterval(loadingInterval);
+  btn.disabled = false;
+  btn.textContent = 'Scan token';
+}
+
+async function runScan(){
+  hideError();
+  const addressField = document.getElementById('addressInput');
+  const address = addressField.value.trim();
+  const chainId = document.getElementById('chainSelect').value;
+  const btn = document.getElementById('scanBtn');
+
+  if(!ADDRESS_RE.test(address)){
+    addressField.classList.add('invalid');
+    showError(['Invalid contract address — must be 0x followed by 40 hex characters.']);
+    return;
+  }
+  addressField.classList.remove('invalid');
+
+  startLoading(btn);
+
+  try {
+    const res = await fetch(`${API_BASE}/analyze/token`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({chain_id: parseInt(chainId), address}),
+    });
+
+    if(!res.ok){
+      const err = await res.json().catch(() => ({}));
+      const detail = err.detail || `Request failed (HTTP ${res.status})`;
+      showError([
+        'Invalid contract address for the selected chain',
+        'Wrong blockchain selected for this token',
+        'Token not supported or GoPlus returned no data',
+        `Details: ${detail}`,
+      ]);
+      return;
+    }
+
+    const data = await res.json();
+    renderResult(data, parseInt(chainId), address);
+  } catch(e){
+    showError([
+      `Could not reach the API at ${API_BASE}.`,
+      'Is the backend running? (uvicorn app.main:app --reload)',
+    ]);
+  } finally {
+    stopLoading(btn);
+  }
+}
+
+function renderResult(data, chainId, address){
+  document.getElementById('emptyState').style.display = 'none';
+
+  document.getElementById('tokenName').textContent = data.token_name || 'Unknown token';
+  document.getElementById('tokenSymbol').textContent = data.token_symbol ? '$' + data.token_symbol : '';
+
+  const color = riskColors[data.risk_level] || riskColors.Medium;
+
+  const badge = document.getElementById('riskBadge');
+  badge.textContent = data.risk_level + ' risk';
+  badge.style.color = color;
+  badge.style.background = color + '1A';
+  badge.style.border = `1px solid ${color}55`;
+
+  const circumference = 276.5; // 2 * PI * 44
+  const offset = circumference - (data.risk_score / 100) * circumference;
+  const fill = document.getElementById('gaugeFill');
+  fill.style.stroke = color;
+  requestAnimationFrame(() => { fill.style.strokeDashoffset = offset; });
+  const scoreText = document.getElementById('scoreText');
+  scoreText.textContent = data.risk_score;
+  scoreText.style.color = color;
+
+  const pct = Math.round(data.confidence * 100);
+  document.getElementById('confidenceText').textContent = pct + '%';
+  requestAnimationFrame(() => {
+    document.getElementById('confidenceFill').style.width = pct + '%';
+  });
+  const known = data.confidence_known_signals, total = data.confidence_total_signals;
+  document.getElementById('confidenceNote').textContent = total
+    ? `Based on ${known} of ${total} security signals returned by GoPlus for this token.`
+    : 'Confidence reflects how complete the available on-chain security data is.';
+
+  document.getElementById('verdictText').textContent = data.summary || '—';
+
+  // Warning signals (triggered rules)
+  const warnList = document.getElementById('warningList');
+  const triggered = data.triggered_rules || [];
+  warnList.innerHTML = triggered.length
+    ? triggered.map(r => `<li><span class="signal-icon warn">⚠</span><span>${r.reason}</span></li>`).join('')
+    : '<li><span class="signal-empty">No warning signals detected.</span></li>';
+
+  // Positive signals (explicit positives + clean checks)
+  const posList = document.getElementById('positiveList');
+  const positives = [
+    ...(data.positive_signals || []),
+    ...((data.not_triggered_rules || []).map(r => r.reason)),
+  ];
+  posList.innerHTML = positives.length
+    ? positives.map(p => `<li><span class="signal-icon ok">✓</span><span>${p}</span></li>`).join('')
+    : '<li><span class="signal-empty">No positive signals returned by the provider.</span></li>';
+
+  // Recommended checks
+  const checks = document.getElementById('checksList');
+  checks.innerHTML = (data.recommended_checks || []).map(c => `<li>${c}</li>`).join('');
+
+  // Technical details — structured grid built from normalized_signals + raw technical_data
+  const ns = data.normalized_signals || {};
+  const td = data.technical_data || {};
+
+  const yesNo = (v) => v === true ? '<span class="v yes">Yes</span>' : v === false ? '<span class="v no">No</span>' : '<span class="v">Unknown</span>';
+  const plain = (k, v) => `<div class="tech-item"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const boolField = (k, v) => `<div class="tech-item"><div class="k">${k}</div>${yesNo(v)}</div>`;
+
+  // Ownership renounced — derived by us from owner_address being a zero/burn address.
+  // This is an interpretation of raw data, not a field GoPlus returns directly.
+  const ownerAddr = (td.owner_address || '').toLowerCase();
+  const isRenounced = ownerAddr && (ownerAddr === '0x0000000000000000000000000000000000000000' || ownerAddr === '0x000000000000000000000000000000000000dead');
+  const renouncedDisplay = ownerAddr ? yesNo(isRenounced) : '<span class="v">Unknown</span>';
+
+  // Trading restrictions — plain-language rollup instead of separate raw flags
+  const restrictions = [];
+  if (ns.trading_cooldown === true) restrictions.push('Trading cooldown');
+  if (ns.cannot_sell_all === true) restrictions.push('Cannot sell full balance');
+  const restrictionsDisplay = restrictions.length
+    ? restrictions.join(', ')
+    : (ns.trading_cooldown == null && ns.cannot_sell_all == null ? 'Unknown' : 'None detected');
+
+  const chainLabel = document.querySelector(`#chainSelect option[value="${chainId}"]`)?.textContent || chainId;
+
+  const techFields = [
+    plain('Chain', chainLabel),
+    plain('Contract', address),
+    plain('Holder count', td.holder_count ? Number(td.holder_count).toLocaleString() : '—'),
+    plain('Liquidity positions', ns.lp_position_count ?? '—'),
+    plain('Largest holder', ns.top_holder_percent != null ? ns.top_holder_percent.toFixed(1) + '%' : '—'),
+    plain('Owner / creator holds', ns.insider_percent != null ? ns.insider_percent.toFixed(1) + '%' : '—'),
+    boolField('Proxy contract', ns.is_proxy),
+    boolField('Mint function', ns.is_mintable),
+    boolField('Blacklist capability', ns.is_blacklisted),
+    boolField('Trust list', ns.trust_list),
+    boolField('Source code verified', ns.is_open_source),
+    `<div class="tech-item"><div class="k">Ownership renounced</div>${renouncedDisplay}</div>`,
+    plain('Trading restrictions', restrictionsDisplay),
+  ];
+  document.getElementById('techGrid').innerHTML = techFields.join('');
+
+  document.getElementById('rawJson').textContent = JSON.stringify(td, null, 2);
+
+  document.getElementById('result').style.display = 'block';
+}
+
+document.getElementById('addressInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter') runScan();
+});
+document.getElementById('addressInput').addEventListener('input', function(){
+  this.classList.remove('invalid');
+});
+</script>
+</body>
+</html>
