@@ -175,6 +175,12 @@ Adding or removing a chain only requires editing `SUPPORTED_CHAINS` in
 
 ## Next steps
 
+- **Solana support** — GoPlus has a separate Solana Token Security API
+  (`/api/v1/solana/token_security`) with a different address format (base58
+  mint addresses, not `0x`-prefixed) and a different risk model (mint/freeze
+  authority, metadata mutability, rather than EVM proxy/honeypot checks). Not
+  added yet — it needs its own normalizer and scoring path verified against
+  real responses, the same way the 15 EVM chains were, rather than guessed.
 - Add `/analyze/wallet` and `/analyze/portfolio` following the same
   normalize → score → explain pattern
 - Wire up x402 payment support if listing this as a paid A2MCP endpoint
