@@ -204,6 +204,40 @@
   }
 
   .confidence-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);}
+
+  /* ── Action row: copy / explorer buttons ── */
+  .action-row{
+    display:flex;flex-wrap:wrap;gap:8px;
+    margin-top:16px;padding-top:16px;border-top:1px solid var(--line);
+  }
+  .chip-btn{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+    padding:7px 12px;border-radius:20px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+    transition:border-color .15s, color .15s, background-color .15s;
+    text-decoration:none;
+  }
+  .chip-btn:hover{border-color:var(--teal);color:var(--teal);}
+  .chip-btn.copied{border-color:var(--teal);color:var(--teal);background:rgba(53,208,186,0.08);}
+
+  /* ── Timestamp ── */
+  .timestamp-row{
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);
+    margin-top:14px;
+  }
+
+  /* ── Risk breakdown bars ── */
+  .breakdown-item{margin-bottom:14px;}
+  .breakdown-item:last-child{margin-bottom:0;}
+  .breakdown-label{
+    display:flex;justify-content:space-between;
+    font-size:12.5px;color:var(--text);margin-bottom:6px;
+  }
+  .breakdown-label .pts{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:11px;}
+  .breakdown-track{height:7px;background:var(--panel-2);border-radius:4px;overflow:hidden;}
+  .breakdown-fill{height:100%;border-radius:4px;width:0;transition:width 0.9s cubic-bezier(.22,.9,.3,1);}
   .confidence-row{
     display:flex;justify-content:space-between;align-items:center;
     font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
@@ -377,6 +411,22 @@
         </div>
         <p class="confidence-note" id="confidenceNote">Confidence reflects how complete the available on-chain security data is.</p>
       </div>
+      <div class="action-row">
+        <button class="chip-btn" id="copyAddressBtn" onclick="copyToClipboard('address')">Copy contract</button>
+        <button class="chip-btn" id="copyScoreBtn" onclick="copyToClipboard('summary')">Copy summary</button>
+        <button class="chip-btn" id="copyJsonBtn" onclick="copyToClipboard('json')">Copy raw JSON</button>
+        <a class="chip-btn" id="explorerBtn" href="#" target="_blank" rel="noopener" style="display:none;">View on explorer ↗</a>
+      </div>
+      <div class="timestamp-row">
+        <span id="timestampText"></span>
+        <span id="durationText"></span>
+      </div>
+    </div>
+
+    <!-- Risk breakdown -->
+    <div class="panel">
+      <p class="section-label">Risk breakdown</p>
+      <div id="breakdownList"></div>
     </div>
 
     <!-- AI Verdict -->
@@ -415,7 +465,7 @@
 
   </div>
 
-  <p class="footer-note">Built for OKX.AI Genesis Hackathon · Deterministic scoring, AI-explained</p>
+  <p class="footer-note">Powered by GoPlus Security · Built for OKX AI Genesis Hackathon<br>FastAPI · GoPlus · OpenAI</p>
 
 </div>
 
@@ -435,6 +485,30 @@ const riskColors = {
   High: getComputedStyle(document.documentElement).getPropertyValue('--red').trim(),
   Critical: getComputedStyle(document.documentElement).getPropertyValue('--critical').trim(),
 };
+
+// Verified explorer domains per chain (checked 2026-07-17 — Mantle and opBNB run
+// their own explorer, not the standard *scan.io pattern; X Layer uses OKLink).
+const EXPLORERS = {
+  1: 'https://etherscan.io/address/',
+  56: 'https://bscscan.com/address/',
+  137: 'https://polygonscan.com/address/',
+  42161: 'https://arbiscan.io/address/',
+  10: 'https://optimistic.etherscan.io/address/',
+  8453: 'https://basescan.org/address/',
+  43114: 'https://snowtrace.io/address/',
+  324: 'https://explorer.zksync.io/address/',
+  59144: 'https://lineascan.build/address/',
+  534352: 'https://scrollscan.com/address/',
+  5000: 'https://mantlescan.xyz/address/',
+  204: 'https://opbnbscan.com/address/',
+  196: 'https://www.oklink.com/xlayer/address/',
+  25: 'https://cronoscan.com/address/',
+  100: 'https://gnosisscan.io/address/',
+};
+
+// Holds the last scan's data + timing so the copy/explorer buttons can use it
+// without re-fetching anything.
+let lastScan = null;
 
 const LOADING_STAGES = [
   'Scanning…',
@@ -524,6 +598,7 @@ async function runScan(){
   addressField.classList.remove('invalid');
 
   startLoading(btn);
+  const startTime = performance.now();
 
   try {
     const res = await fetch(`${API_BASE}/analyze/token`, {
@@ -545,7 +620,8 @@ async function runScan(){
     }
 
     const data = await res.json();
-    renderResult(data, parseInt(chainId), address);
+    const elapsedSeconds = ((performance.now() - startTime) / 1000).toFixed(2);
+    renderResult(data, parseInt(chainId), address, elapsedSeconds);
   } catch(e){
     showError([
       `Could not reach the API at ${API_BASE}.`,
@@ -556,8 +632,9 @@ async function runScan(){
   }
 }
 
-function renderResult(data, chainId, address){
+function renderResult(data, chainId, address, elapsedSeconds){
   document.getElementById('emptyState').style.display = 'none';
+  lastScan = { data, chainId, address };
 
   document.getElementById('tokenName').textContent = data.token_name || 'Unknown token';
   document.getElementById('tokenSymbol').textContent = data.token_symbol ? '$' + data.token_symbol : '';
@@ -578,6 +655,22 @@ function renderResult(data, chainId, address){
   const scoreText = document.getElementById('scoreText');
   scoreText.textContent = data.risk_score;
   scoreText.style.color = color;
+
+  // Explorer link
+  const explorerBtn = document.getElementById('explorerBtn');
+  if (EXPLORERS[chainId]) {
+    explorerBtn.href = EXPLORERS[chainId] + address;
+    explorerBtn.style.display = 'inline-flex';
+  } else {
+    explorerBtn.style.display = 'none';
+  }
+
+  // Timestamp + duration
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  document.getElementById('timestampText').textContent = `Analysis completed ${dateStr}, ${timeStr} UTC`;
+  document.getElementById('durationText').textContent = elapsedSeconds ? `${elapsedSeconds}s` : '';
 
   const pct = Math.round(data.confidence * 100);
   document.getElementById('confidenceText').textContent = pct + '%';
@@ -655,7 +748,80 @@ function renderResult(data, chainId, address){
 
   document.getElementById('rawJson').textContent = JSON.stringify(td, null, 2);
 
+  renderBreakdown(data);
+
   document.getElementById('result').style.display = 'block';
+}
+
+// Risk breakdown — groups already-returned triggered_rules into four buckets
+// for a quick visual sense of *where* the risk is concentrated. Purely a
+// display layer over data the backend already computed; no new scoring logic.
+const BREAKDOWN_CATEGORIES = {
+  'Holder concentration': { fields: ['top_holder_percent', 'insider_percent'], max: 35, color: 'var(--amber)' },
+  'Liquidity': { fields: ['top_lp_holder_percent'], max: 25, color: 'var(--teal)' },
+  'Contract security': { fields: ['is_honeypot', 'is_blacklisted', 'cannot_sell_all', 'selfdestruct', 'trading_cooldown'], max: 85, color: 'var(--red)' },
+  'Ownership control': { fields: ['is_mintable', 'hidden_owner', 'can_take_back_ownership', 'is_proxy', 'is_open_source'], max: 63, color: 'var(--critical)' },
+};
+
+function renderBreakdown(data){
+  const triggered = data.triggered_rules || [];
+  const totals = {};
+  Object.keys(BREAKDOWN_CATEGORIES).forEach(cat => totals[cat] = 0);
+
+  triggered.forEach(rule => {
+    for (const [cat, cfg] of Object.entries(BREAKDOWN_CATEGORIES)) {
+      if (cfg.fields.includes(rule.field)) {
+        totals[cat] += rule.points;
+        break;
+      }
+    }
+  });
+
+  const list = document.getElementById('breakdownList');
+  list.innerHTML = Object.entries(BREAKDOWN_CATEGORIES).map(([cat, cfg]) => {
+    const pts = totals[cat];
+    const pct = Math.min(100, Math.round((pts / cfg.max) * 100));
+    return `
+      <div class="breakdown-item">
+        <div class="breakdown-label"><span>${cat}</span><span class="pts">${pts} pts</span></div>
+        <div class="breakdown-track"><div class="breakdown-fill" style="background:${cfg.color}" data-pct="${pct}"></div></div>
+      </div>`;
+  }).join('');
+
+  requestAnimationFrame(() => {
+    list.querySelectorAll('.breakdown-fill').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  });
+}
+
+// Copy buttons
+async function copyToClipboard(type){
+  if (!lastScan) return;
+  const { data, address } = lastScan;
+  let text, btnId;
+
+  if (type === 'address') {
+    text = address;
+    btnId = 'copyAddressBtn';
+  } else if (type === 'summary') {
+    text = `${data.token_name} (${data.token_symbol})\nRisk: ${data.risk_score}/100 — ${data.risk_level}\n${data.summary}`;
+    btnId = 'copyScoreBtn';
+  } else {
+    text = JSON.stringify(data.technical_data, null, 2);
+    btnId = 'copyJsonBtn';
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById(btnId);
+    const original = btn.textContent;
+    btn.textContent = 'Copied ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1600);
+  } catch(e) {
+    // Clipboard API unavailable (e.g. non-HTTPS context) — fail silently, buttons are a convenience
+  }
 }
 
 document.getElementById('addressInput').addEventListener('keydown', e => {
