@@ -1,0 +1,22 @@
+.comparison-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--card-radius);
+  border: 1px solid;
+}
+
+.comparison-summary-winner {
+  background: rgba(34,197,94,0.08);
+  border-color: rgba(34,197,94,0.3);
+  color: var(--success);
+}
+.comparison-summary-tie {
+  background: rgba(6,182,212,0.08);
+  border-color: rgba(6,182,212,0.3);
+  color: var(--info);
+}
+
+.comparison-summary-title { font-size: var(--text-card-title); font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-1); }
+.comparison-summary-reason { font-size: var(--text-small); color: var(--text-secondary); }
