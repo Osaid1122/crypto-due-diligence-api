@@ -1,0 +1,93 @@
+/* ============================================================
+   Design tokens — Part 1B spec, values taken exactly as specified.
+   Base spacing unit: 8px. Scale: 4/8/12/16/24/32/40/48/64/96.
+   ============================================================ */
+:root {
+  /* Color system */
+  --bg-primary: #0B1220;
+  --bg-secondary: #111827;
+  --bg-card: #1F2937;
+  --accent: #3B82F6;
+  --accent-hover: #2563EB;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #06B6D4;
+  --border: #374151;
+  --text-primary: #FFFFFF;
+  --text-secondary: #D1D5DB;
+  --text-muted: #9CA3AF;
+  --text-disabled: #6B7280;
+
+  /* Spacing scale (8px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Typography scale */
+  --text-hero: 48px;
+  --text-page-title: 36px;
+  --text-section: 28px;
+  --text-card-title: 20px;
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-caption: 12px;
+
+  /* Layout */
+  --sidebar-width: 280px;
+  --topnav-height: 72px;
+  --content-padding: 32px;
+  --content-max-width: 1600px;
+
+  /* Card */
+  --card-radius: 16px;
+  --card-border: 1px solid var(--border);
+  --card-padding: 24px;
+  --card-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.4);
+  --card-shadow-hover: 0 1px 2px rgba(0,0,0,0.3), 0 16px 40px -12px rgba(59,130,246,0.18);
+
+  /* Motion — subtle, fast, professional per spec */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 250ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Geist', -apple-system, sans-serif;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100vh; }
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+
+/* Focus states — visible keyboard focus per accessibility requirement */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

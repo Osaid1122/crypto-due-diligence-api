@@ -1,0 +1,66 @@
+.topnav {
+  height: var(--topnav-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  gap: var(--space-6);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topnav-left { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.topnav-title { font-size: var(--text-card-title); font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.topnav-menu-btn { display: none; background: none; border: none; color: var(--text-secondary); padding: var(--space-2); }
+
+.topnav-search {
+  flex: 1;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-4);
+  transition: border-color var(--motion-fast) var(--ease);
+}
+.topnav-search:focus-within { border-color: var(--accent); }
+.topnav-search-icon { color: var(--text-muted); flex-shrink: 0; }
+.topnav-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: var(--text-small);
+  outline: none;
+  min-width: 0;
+}
+.topnav-search input::placeholder { color: var(--text-disabled); }
+
+.topnav-right { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+
+.topnav-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.topnav-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+
+.topnav-profile { background: var(--bg-card); border: 1px solid var(--border); }
+
+@media (max-width: 1024px) {
+  .topnav-menu-btn { display: flex; align-items: center; justify-content: center; }
+  .topnav-search { display: none; }
+}

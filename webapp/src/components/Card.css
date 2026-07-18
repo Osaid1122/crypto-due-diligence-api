@@ -1,0 +1,16 @@
+.card {
+  background: var(--bg-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow var(--motion-base) var(--ease),
+              border-color var(--motion-base) var(--ease),
+              transform var(--motion-base) var(--ease);
+}
+
+.card-hoverable:hover {
+  box-shadow: var(--card-shadow-hover);
+  border-color: #4B5563;
+  transform: translateY(-2px);
+}
