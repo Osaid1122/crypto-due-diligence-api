@@ -1,33 +1,10 @@
+import { deriveOwnershipRenounced, deriveTradingRestrictions } from '../../utils/derived';
 import './InfoGrid.css';
 
 function yesNo(v) {
   if (v === true) return <span className="info-value info-yes">Yes</span>;
   if (v === false) return <span className="info-value info-no">No</span>;
   return <span className="info-value info-unknown">Unknown</span>;
-}
-
-/**
- * Ownership renounced is derived here (owner_address being a zero/burn
- * address), not returned directly by GoPlus — flagged as such, same as the
- * vanilla-JS version.
- */
-function deriveOwnershipRenounced(ownerAddress) {
-  const addr = (ownerAddress || '').toLowerCase();
-  if (!addr) return null;
-  const burnAddresses = [
-    '0x0000000000000000000000000000000000000000',
-    '0x000000000000000000000000000000000000dead',
-  ];
-  return burnAddresses.includes(addr);
-}
-
-function deriveTradingRestrictions(normalized) {
-  const restrictions = [];
-  if (normalized.trading_cooldown === true) restrictions.push('Trading cooldown');
-  if (normalized.cannot_sell_all === true) restrictions.push('Cannot sell full balance');
-  if (restrictions.length) return restrictions.join(', ');
-  if (normalized.trading_cooldown == null && normalized.cannot_sell_all == null) return 'Unknown';
-  return 'None detected';
 }
 
 export default function InfoGrid({ normalizedSignals = {}, technicalData = {}, chainName, address }) {
