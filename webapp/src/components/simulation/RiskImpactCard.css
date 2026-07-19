@@ -1,0 +1,10 @@
+.risk-impact-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-3) var(--space-4);
+  text-align: center;
+  flex: 1;
+}
+.risk-impact-label { font-size: var(--text-caption); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-1); }
+.risk-impact-value { font-size: var(--text-small); font-weight: 700; }

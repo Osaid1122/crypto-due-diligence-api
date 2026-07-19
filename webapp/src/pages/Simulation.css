@@ -1,0 +1,40 @@
+.simulation-page { display: flex; flex-direction: column; gap: var(--space-6); }
+
+.simulation-disclaimer {
+  font-size: var(--text-caption); color: var(--text-muted); line-height: 1.5;
+  margin: 0 0 var(--space-4); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border);
+}
+
+.simulation-input-row { display: flex; gap: var(--space-3); }
+.simulation-select, .simulation-address-input {
+  background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary);
+  border-radius: 10px; padding: var(--space-3) var(--space-4); font-size: var(--text-small);
+  outline: none; transition: border-color var(--motion-fast) var(--ease);
+}
+.simulation-select:focus, .simulation-address-input:focus { border-color: var(--accent); }
+.simulation-select { flex: 0 0 180px; }
+.simulation-address-input { flex: 1; min-width: 0; font-family: monospace; }
+
+.simulation-empty, .simulation-loading, .simulation-error, .simulation-clean { text-align: center; padding: var(--space-12) var(--space-6); }
+.simulation-empty p, .simulation-clean p { color: var(--text-muted); margin: 0; }
+.simulation-clean-icon { color: var(--success); margin-bottom: var(--space-4); }
+
+.simulation-spinner {
+  width: 32px; height: 32px; margin: 0 auto var(--space-4);
+  border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%;
+  animation: sim-spin 0.8s linear infinite;
+}
+@keyframes sim-spin { to { transform: rotate(360deg); } }
+.simulation-loading p { color: var(--text-secondary); font-size: var(--text-small); margin: 0; }
+
+.simulation-error { text-align: left; }
+.simulation-error-title { display: flex; align-items: center; gap: var(--space-2); color: var(--danger); font-weight: 600; font-size: var(--text-card-title); margin-bottom: var(--space-4); }
+.simulation-error-detail { font-size: var(--text-caption); color: var(--text-disabled); font-family: monospace; margin: 0 0 var(--space-4); }
+
+.simulation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-6); }
+
+@media (max-width: 768px) {
+  .simulation-input-row { flex-direction: column; }
+  .simulation-select { flex: 1; }
+  .simulation-grid { grid-template-columns: 1fr; }
+}
