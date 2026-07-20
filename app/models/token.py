@@ -1,24 +1,37 @@
 import re
-from pydantic import BaseModel, Field, field_validator
+from typing import Literal, Optional
+from pydantic import BaseModel, Field, model_validator
 
-ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+EVM_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+# Solana addresses are base58-encoded, 32-44 characters, excluding the
+# visually-ambiguous characters 0, O, I, l (standard base58 alphabet).
+SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
 
 class TokenAnalyzeRequest(BaseModel):
-    chain_id: int = Field(..., description="EVM chain ID, e.g. 1 for Ethereum, 196 for X Layer")
-    address: str = Field(..., description="Token contract address")
+    address: str = Field(..., description="Token contract address (EVM) or SPL mint address (Solana)")
+    chain_id: Optional[int] = Field(None, description="EVM chain ID, e.g. 1 for Ethereum, 196 for X Layer. Required when chain_type is 'evm'; ignored for Solana.")
+    # Defaults to "evm" so every existing caller keeps working completely
+    # unchanged — this field is new and additive, not a breaking change.
+    chain_type: Literal["evm", "solana"] = "evm"
 
-    @field_validator("address")
-    @classmethod
-    def validate_address(cls, v: str) -> str:
-        if not ADDRESS_RE.match(v):
-            raise ValueError("address must be a valid EVM contract address (0x + 40 hex chars)")
-        return v
+    @model_validator(mode="after")
+    def validate_for_chain_type(self):
+        if self.chain_type == "solana":
+            if not SOLANA_ADDRESS_RE.match(self.address):
+                raise ValueError("address must be a valid Solana SPL mint address (base58, 32-44 characters)")
+        else:
+            if self.chain_id is None:
+                raise ValueError("chain_id is required when chain_type is 'evm'")
+            if not EVM_ADDRESS_RE.match(self.address):
+                raise ValueError("address must be a valid EVM contract address (0x + 40 hex chars)")
+        return self
 
 
 class TokenAnalyzeResponse(BaseModel):
     token_name: str | None = None
     token_symbol: str | None = None
+    chain_type: str = "evm"
     risk_score: int
     risk_level: str
     confidence: float = Field(..., description="Share of expected signals GoPlus actually returned (0-1)")

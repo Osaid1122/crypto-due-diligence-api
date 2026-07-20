@@ -29,6 +29,35 @@ CHECKS: list[tuple[str, bool, int, str, str, str]] = [
     ("is_open_source", False, 10, "Medium", "Contract source code is not verified/open source", "Contract source code verified"),
     # is_proxy downgraded to informational — common on legitimate large tokens (e.g. USDC)
     ("is_proxy", True, 3, "Informational", "Upgradeable proxy contract detected", "Not an upgradeable proxy"),
+
+    # ---- Solana-only concepts (see solana_normalizer.py) — these keys are
+    # never populated by the EVM normalizer, so they're always None for EVM
+    # tokens and this section cannot change EVM scoring behavior. Weights
+    # below are informed by one real data point: USDC on Solana (a
+    # maximally-trusted token) has mintable/freezable enabled (normal
+    # administrative capability even for trusted issuers) but closable and
+    # balance_mutable_authority both disabled — suggesting the latter two
+    # are NOT normal even for trusted tokens, and deserve materially higher
+    # weight than mint/freeze. ----
+    ("closable", True, 35, "Critical", "Contract can be closed by an authority, which would eliminate all associated assets — not enabled even on Solana's most trusted tokens", "Cannot be closed by an authority"),
+    ("balance_mutable_authority", True, 30, "Critical", "An authority can directly alter individual holder balances — not enabled even on Solana's most trusted tokens", "No authority can alter holder balances directly"),
+    # has_transfer_hook: Token-2022's programmable hooks can block trades
+    # outright — the closest Solana analog to a honeypot. Weighted High
+    # rather than Critical since we don't yet have a real example of a
+    # token that uses this feature to see whether it's normal or abusive
+    # in practice; revisit once one is observed.
+    ("has_transfer_hook", True, 25, "High", "Token uses a transfer hook program, which can intercept or block transfers", "No transfer hook detected"),
+    ("metadata_mutable", True, 8, "Low", "Token metadata (name, symbol, image) can be changed after launch", "Token metadata is immutable"),
+    # Mint/freeze authority — deliberately NOT scored via the shared
+    # is_mintable/is_blacklisted rules above (see solana_normalizer.py for
+    # why). Real data (USDC on Solana) shows both present on a maximally-
+    # trusted token, so weighted low/Informational like EVM's is_proxy,
+    # not High like EVM's is_mintable. Revisit once a real risky Solana
+    # token's data is available to check whether escalating via a combo
+    # (e.g. mint+freeze together with no trust_list) is justified — no such
+    # data point exists yet, so no combo rule is added speculatively.
+    ("has_mint_authority", True, 5, "Informational", "Mint authority has not been revoked — the issuer can create additional tokens", "Mint authority has been revoked"),
+    ("has_freeze_authority", True, 5, "Informational", "Freeze authority has not been revoked — the issuer can freeze individual holder accounts", "Freeze authority has been revoked"),
 ]
 
 CRITICAL_COMBOS: list[tuple[set, str]] = [
