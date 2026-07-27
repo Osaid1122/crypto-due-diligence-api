@@ -260,7 +260,10 @@ class HeliusProvider:
             # Enhanced Transactions is the supported address-history endpoint.
             try:
                 tx_resp = await asyncio.wait_for(
-                    client.get(f"{transaction_url}/addresses/{address}/transactions", params={**auth_params, "limit": 100},
+                    client.get(
+                        f"{transaction_url}/addresses/{address}/transactions",
+                        params={**auth_params, "limit": 100},
+                    ),
                     timeout=20.0,
                 )
                 tx_resp.raise_for_status()
