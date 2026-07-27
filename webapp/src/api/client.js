@@ -8,8 +8,7 @@ const isLocal =
 
 const envApiUrl = import.meta.env.VITE_API_URL;
 import { getNetwork } from '../config/networks';
-export const API_BASE = envApiUrl || (isLocal ? 'http://127.0.0.1:8000' : (isBrowser ? window.location.origin : ''));
-
+export const API_BASE = envApiUrl || (isLocal ? 'http://127.0.0.1:8000' : 'https://crypto-due-diligence-api.onrender.com');
 export async function fetchChains() {
   const res = await fetch(`${API_BASE}/chains`);
   if (!res.ok) throw new Error('Failed to load supported chains');
