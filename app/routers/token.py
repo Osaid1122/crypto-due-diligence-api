@@ -9,6 +9,7 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 @router.post("/token", response_model=TokenAnalyzeResponse)
 async def analyze_token(payload: TokenAnalyzeRequest):
     try:
+        network = chain_adapter.get_network(payload.chain_type, payload.chain_id)
         raw, normalized = await chain_adapter.fetch_and_normalize(
             payload.chain_type, payload.chain_id, payload.address
         )
@@ -32,6 +33,8 @@ async def analyze_token(payload: TokenAnalyzeRequest):
         token_name=token_name,
         token_symbol=token_symbol,
         chain_type=payload.chain_type,
+        network=network["key"],
+        chain_id=network["id"],
         risk_score=score_data["score"],
         risk_level=score_data["risk_level"],
         confidence=score_data["confidence"],

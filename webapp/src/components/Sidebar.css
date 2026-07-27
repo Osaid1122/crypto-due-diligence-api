@@ -28,8 +28,10 @@
   font-size: var(--text-small);
   font-weight: 700;
   color: var(--text-primary);
+  text-decoration: none;
 }
-.sidebar-logo svg { color: var(--accent); flex-shrink: 0; }
+.sidebar-logo:hover { color: var(--text-primary); }
+.sidebar-logo-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; color: white; background: linear-gradient(135deg, var(--accent), #6558e6); box-shadow: 0 5px 16px color-mix(in srgb, var(--accent) 30%, transparent); }.sidebar-logo b { color: var(--accent); }.sidebar-logo small { display: block; margin-top: 2px; color: var(--text-disabled); font-size: 8px; font-weight: 700; letter-spacing: .1em; }
 
 .sidebar-close { display: none; background: none; border: none; color: var(--text-muted); padding: var(--space-2); }
 

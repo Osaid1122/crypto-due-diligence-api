@@ -1,27 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GitCompare } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import TokenPanel from '../components/compare/TokenPanel';
 import ComparisonSummary from '../components/compare/ComparisonSummary';
-import { fetchChains, analyzeToken, ADDRESS_RE } from '../api/client';
+import { analyzeToken } from '../api/client';
+import ChainSelector, { addressPlaceholder, isValidAddress } from '../components/ChainSelector';
+import { getNetwork } from '../config/networks';
 import './Compare.css';
 
-const EMPTY_SIDE = { chainId: '1', address: '', status: 'idle', result: null, error: '' };
+const EMPTY_SIDE = { chainType: 'ethereum', address: '', status: 'idle', result: null, error: '' };
 
 export default function Compare() {
-  const [chains, setChains] = useState([]);
   const [sideA, setSideA] = useState({ ...EMPTY_SIDE });
   const [sideB, setSideB] = useState({ ...EMPTY_SIDE });
-
-  useEffect(() => {
-    fetchChains().then(d => setChains(d.chains || [])).catch(() => {});
-  }, []);
-
-  const groupedChains = chains.reduce((acc, c) => {
-    (acc[c.ecosystem] ||= []).push(c);
-    return acc;
-  }, {});
 
   function updateSide(setSide, patch) {
     setSide(prev => ({ ...prev, ...patch }));
@@ -30,8 +22,8 @@ export default function Compare() {
   async function runComparison(e) {
     e.preventDefault();
 
-    const validA = ADDRESS_RE.test(sideA.address.trim());
-    const validB = ADDRESS_RE.test(sideB.address.trim());
+    const validA = isValidAddress(sideA.chainType, sideA.address);
+    const validB = isValidAddress(sideB.chainType, sideB.address);
 
     if (!validA) updateSide(setSideA, { status: 'error', error: 'Invalid contract address.' });
     if (!validB) updateSide(setSideB, { status: 'error', error: 'Invalid contract address.' });
@@ -44,8 +36,8 @@ export default function Compare() {
     // backend change, no duplicated analysis logic. allSettled so one side
     // failing doesn't block the other from rendering.
     const [resA, resB] = await Promise.allSettled([
-      analyzeToken(Number(sideA.chainId), sideA.address.trim()),
-      analyzeToken(Number(sideB.chainId), sideB.address.trim()),
+      analyzeToken(sideA.chainType, sideA.address.trim()),
+      analyzeToken(sideB.chainType, sideB.address.trim()),
     ]);
 
     if (resA.status === 'fulfilled') {
@@ -61,8 +53,8 @@ export default function Compare() {
     }
   }
 
-  function chainName(chainId) {
-    return chains.find(c => String(c.id) === String(chainId))?.name;
+  function chainName(chainType) {
+    return getNetwork(chainType).label;
   }
 
   const bothSucceeded = sideA.status === 'success' && sideB.status === 'success';
@@ -73,22 +65,11 @@ export default function Compare() {
         <form onSubmit={runComparison} className="compare-form">
           <div className="compare-input-col">
             <div className="compare-input-label">Token A</div>
-            <select
-              value={sideA.chainId}
-              onChange={e => updateSide(setSideA, { chainId: e.target.value })}
-              className="compare-select"
-              aria-label="Token A blockchain"
-            >
-              {Object.entries(groupedChains).map(([eco, list]) => (
-                <optgroup key={eco} label={eco}>
-                  {list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </optgroup>
-              ))}
-            </select>
+            <ChainSelector value={sideA.chainType} onChange={chainType => updateSide(setSideA, { chainType })} />
             <input
               type="text"
               className="compare-address-input"
-              placeholder="0xA0b86991..."
+              placeholder={addressPlaceholder(sideA.chainType)}
               value={sideA.address}
               onChange={e => updateSide(setSideA, { address: e.target.value, error: '' })}
             />
@@ -98,22 +79,11 @@ export default function Compare() {
 
           <div className="compare-input-col">
             <div className="compare-input-label">Token B</div>
-            <select
-              value={sideB.chainId}
-              onChange={e => updateSide(setSideB, { chainId: e.target.value })}
-              className="compare-select"
-              aria-label="Token B blockchain"
-            >
-              {Object.entries(groupedChains).map(([eco, list]) => (
-                <optgroup key={eco} label={eco}>
-                  {list.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </optgroup>
-              ))}
-            </select>
+            <ChainSelector value={sideB.chainType} onChange={chainType => updateSide(setSideB, { chainType })} />
             <input
               type="text"
               className="compare-address-input"
-              placeholder="0x514910771AF9Ca656af840dff83E8264EcF986CA"
+              placeholder={addressPlaceholder(sideB.chainType)}
               value={sideB.address}
               onChange={e => updateSide(setSideB, { address: e.target.value, error: '' })}
             />
@@ -138,7 +108,7 @@ export default function Compare() {
             status={sideA.status}
             result={sideA.result}
             error={sideA.error}
-            chainName={chainName(sideA.chainId)}
+            chainName={chainName(sideA.chainType)}
             address={sideA.address.trim()}
           />
           <TokenPanel
@@ -146,7 +116,7 @@ export default function Compare() {
             status={sideB.status}
             result={sideB.result}
             error={sideB.error}
-            chainName={chainName(sideB.chainId)}
+            chainName={chainName(sideB.chainType)}
             address={sideB.address.trim()}
           />
         </div>

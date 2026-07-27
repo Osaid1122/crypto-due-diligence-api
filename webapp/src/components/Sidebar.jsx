@@ -1,13 +1,13 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import {
-  Shield, LayoutDashboard, Activity, ShieldCheck, GitCompare,
-  Wallet, FileText, Info, Code2, Sun, Moon, X,
+  Shield, Home, LayoutDashboard, Activity, ShieldCheck, GitCompare,
+  Wallet, FileText, Info, X,
 } from 'lucide-react';
-import { useState } from 'react';
 import './Sidebar.css';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/dashboard', label: 'Analysis Dashboard', icon: LayoutDashboard },
   { to: '/simulation', label: 'Attack Simulation', icon: Activity },
   { to: '/protection', label: 'Protection Advisor', icon: ShieldCheck },
   { to: '/compare', label: 'Compare Tokens', icon: GitCompare },
@@ -17,27 +17,26 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ open, onClose }) {
-  const [dark, setDark] = useState(true);
-
   return (
     <>
       {open && <div className="sidebar-scrim" onClick={onClose} aria-hidden="true" />}
       <aside className={`sidebar${open ? ' sidebar-open' : ''}`} aria-label="Primary navigation">
         <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <Shield size={22} strokeWidth={2.2} />
-            <span>Crypto Due Diligence</span>
-          </div>
+          <Link className="sidebar-logo" to="/" onClick={onClose} aria-label="Crypto Due Diligence home">
+            <span className="sidebar-logo-mark"><Shield size={19} strokeWidth={2.4} /></span>
+            <span><b>Crypto</b> Due Diligence<small>SECURITY INTELLIGENCE</small></span>
+          </Link>
           <button className="sidebar-close" onClick={onClose} aria-label="Close menu">
             <X size={20} />
           </button>
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+          {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
+              end={end}
               className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
               onClick={onClose}
             >
@@ -48,19 +47,6 @@ export default function Sidebar({ open, onClose }) {
         </nav>
 
         <div className="sidebar-footer">
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sidebar-footer-link"
-          >
-            <Code2 size={16} />
-            <span>GitHub Repository</span>
-          </a>
-          <button className="sidebar-footer-link" onClick={() => setDark(d => !d)}>
-            {dark ? <Sun size={16} /> : <Moon size={16} />}
-            <span>Theme Toggle</span>
-          </button>
           <div className="sidebar-version">v1.0.0</div>
         </div>
       </aside>

@@ -1,0 +1,8 @@
+.chain-selector { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--border); background: var(--bg-primary); border-radius: 10px; }
+.chain-selector-option { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 11px; border: 0; border-radius: 7px; color: var(--text-muted); background: transparent; font-size: var(--text-caption); font-weight: 600; transition: color var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease); }
+.chain-selector-option:hover { color: var(--text-primary); }
+.chain-selector-option.is-selected { color: var(--text-primary); background: color-mix(in srgb, var(--accent) 16%, var(--bg-card)); box-shadow: 0 1px 3px rgb(0 0 0 / 18%); }
+.chain-selector-option.is-selected svg { color: var(--accent); }
+.chain-selector-evm-network { min-height: 34px; max-width: 170px; padding: 0 9px; border: 1px solid rgba(59, 130, 246, 0.55); border-radius: 7px; color: #f8fafc; background: #0f1b30; font: inherit; font-size: var(--text-caption); cursor: pointer; }
+.chain-selector-evm-network option { color: #f8fafc; background: #0f1b30; }
+.chain-selector-evm-network option:checked { color: #ffffff; background: #2563eb; }

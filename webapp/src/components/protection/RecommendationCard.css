@@ -2,10 +2,12 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-2) 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid rgb(148 163 184 / 13%);
   font-size: var(--text-small);
   color: var(--text-secondary);
   line-height: 1.5;
 }
+.recommendation-card:first-child { border-top: 0; padding-top: 0; }.recommendation-card:last-child { padding-bottom: 0; }.recommendation-card:hover { color: var(--text-primary); }.recommendation-card:hover .recommendation-icon { color: var(--success); }
 .recommendation-icon { color: var(--info); flex-shrink: 0; margin-top: 2px; }
-.recommendation-text { flex: 1; }
+.recommendation-content { flex: 1; min-width: 0; }.recommendation-text { display: block; }.recommendation-resources { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }.recommendation-resources a { display: inline-flex; align-items: center; gap: 4px; color: #91bbff; font-size: 11px; font-weight: 650; }.recommendation-resources a:hover { color: #c5dcff; text-decoration: underline; }

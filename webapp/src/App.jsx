@@ -34,7 +34,7 @@ export default function App() {
         <Route path="/simulation" element={<PageWithLayout path="/simulation"><Simulation /></PageWithLayout>} />
         <Route path="/protection" element={<PageWithLayout path="/protection"><Protection /></PageWithLayout>} />
         <Route path="/compare" element={<PageWithLayout path="/compare"><Compare /></PageWithLayout>} />
-        <Route path="/wallet" element={<PageWithLayout path="/wallet"><WalletScanner /></PageWithLayout>} />
+        <Route path="/wallet/:address?" element={<PageWithLayout path="/wallet"><WalletScanner /></PageWithLayout>} />
         <Route path="/docs" element={<PageWithLayout path="/docs"><Docs /></PageWithLayout>} />
         <Route path="/about" element={<PageWithLayout path="/about"><About /></PageWithLayout>} />
       </Routes>

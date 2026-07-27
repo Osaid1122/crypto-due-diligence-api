@@ -1,8 +1,10 @@
 import re
 from typing import Literal, Optional
 from pydantic import BaseModel, Field, model_validator
+from app.core.config import SUPPORTED_CHAINS
 
 EVM_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+SUPPORTED_EVM_CHAIN_IDS = {chain["id"] for chain in SUPPORTED_CHAINS}
 # Solana addresses are base58-encoded, 32-44 characters, excluding the
 # visually-ambiguous characters 0, O, I, l (standard base58 alphabet).
 SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
@@ -23,6 +25,8 @@ class TokenAnalyzeRequest(BaseModel):
         else:
             if self.chain_id is None:
                 raise ValueError("chain_id is required when chain_type is 'evm'")
+            if self.chain_id not in SUPPORTED_EVM_CHAIN_IDS:
+                raise ValueError("chain_id is not supported by the configured GoPlus EVM token-security provider")
             if not EVM_ADDRESS_RE.match(self.address):
                 raise ValueError("address must be a valid EVM contract address (0x + 40 hex chars)")
         return self
@@ -32,6 +36,8 @@ class TokenAnalyzeResponse(BaseModel):
     token_name: str | None = None
     token_symbol: str | None = None
     chain_type: str = "evm"
+    network: str
+    chain_id: int | None = None
     risk_score: int
     risk_level: str
     confidence: float = Field(..., description="Share of expected signals GoPlus actually returned (0-1)")

@@ -1,4 +1,3 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from 'recharts';
 
 // Same grouping used in the original vanilla-JS frontend, ported as-is — it
 // groups the backend's already-computed triggered_rules into four buckets for
@@ -32,28 +31,11 @@ export function computeBreakdown(triggeredRules = []) {
 export default function ScoreBreakdownChart({ triggeredRules = [] }) {
   const data = computeBreakdown(triggeredRules);
 
-  return (
-    <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
-        <XAxis type="number" domain={[0, 100]} hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={150}
-          tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <Tooltip
-          cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-          contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }}
-          labelStyle={{ color: '#FFFFFF' }}
-          formatter={(value, name, props) => [`${props.payload.points} pts`, 'Contribution']}
-        />
-        <Bar dataKey="pct" radius={[0, 6, 6, 0]} barSize={16}>
-          {data.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+  return <div className="score-breakdown" role="list">
+    {data.map(entry => <div className="score-breakdown-row" role="listitem" key={entry.name}>
+      <div className="score-breakdown-label"><span>{entry.name}</span><strong>{entry.pct}%</strong></div>
+      <div className="score-breakdown-track"><i style={{ width: `${entry.pct}%`, backgroundColor: entry.color }} /></div>
+      <small>{entry.points ? `${entry.points} risk pts` : 'No risk points'}</small>
+    </div>)}
+  </div>;
 }

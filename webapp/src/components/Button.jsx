@@ -13,12 +13,13 @@ export default function Button({
   onClick,
   type = 'button',
   fullWidth = false,
+  className = '',
   ...rest
 }) {
   return (
     <button
       type={type}
-      className={`btn btn-${variant}${fullWidth ? ' btn-full' : ''}`}
+      className={`btn btn-${variant}${fullWidth ? ' btn-full' : ''}${className ? ` ${className}` : ''}`}
       onClick={onClick}
       disabled={disabled || loading}
       {...rest}

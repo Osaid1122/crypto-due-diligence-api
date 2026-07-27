@@ -16,6 +16,8 @@
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-full { width: 100%; }
 
+.btn-lg { padding: 1rem 1.4rem; font-size: 0.98rem; border-radius: 14px; }
+
 .btn-primary {
   background: var(--accent);
   color: #FFFFFF;

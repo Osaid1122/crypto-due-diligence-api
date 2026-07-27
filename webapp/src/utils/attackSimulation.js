@@ -18,6 +18,14 @@ const ORDERED_SCENARIO_KEYS = [
   'insider_percent', 'is_open_source', 'trading_cooldown',
 ];
 
+const SEVERITY_PRIORITY = {
+  Critical: 4,
+  High: 3,
+  Medium: 2,
+  Low: 1,
+  Informational: 0,
+};
+
 // impact/difficulty are fixed per capability — never derived from severity,
 // never invented per-instance. probability alone comes from the backend's
 // own severity rating for that finding.
@@ -155,6 +163,31 @@ export function getAttackScenarios(result) {
   }
 
   return scenarios;
+}
+
+/**
+ * Chooses one report-worthy scenario without changing or discarding any
+ * findings. Impact is the primary deterministic signal, followed by the
+ * backend rule severity already attached as probability. A stable original
+ * index is the final tie-breaker, so provider response order cannot randomise
+ * the selected report.
+ */
+export function selectPrimaryScenario(scenarios) {
+  if (!scenarios?.length) return null;
+
+  return scenarios
+    .map((scenario, index) => ({ scenario, index }))
+    .sort((left, right) => {
+      const impactDelta = (SEVERITY_PRIORITY[right.scenario.impact] ?? 0)
+        - (SEVERITY_PRIORITY[left.scenario.impact] ?? 0);
+      if (impactDelta) return impactDelta;
+
+      const probabilityDelta = (SEVERITY_PRIORITY[right.scenario.probability] ?? 0)
+        - (SEVERITY_PRIORITY[left.scenario.probability] ?? 0);
+      if (probabilityDelta) return probabilityDelta;
+
+      return left.index - right.index;
+    })[0].scenario;
 }
 
 export { TIMELINE_STEPS };

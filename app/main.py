@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-from app.routers import token
+load_dotenv()
+
+from app.routers import token, wallet
 from app.core.config import get_settings
 
 app = FastAPI(
@@ -19,6 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(token.router)
+app.include_router(wallet.router)
 
 
 @app.get("/")
@@ -35,4 +39,4 @@ async def health():
 async def list_chains():
     """Single source of truth for supported chains — the frontend dropdown
     builds itself from this response instead of hardcoding options."""
-    return {"chains": get_settings().supported_chains}
+    return {"chains": get_settings().analysis_networks}

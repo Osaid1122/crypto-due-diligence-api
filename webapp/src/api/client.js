@@ -1,13 +1,14 @@
 // Reuses the existing, already-deployed FastAPI backend — no backend changes
 // needed. Auto-detects local dev vs. production the same way the previous
 // vanilla frontend did.
+const isBrowser = typeof window !== 'undefined';
 const isLocal =
-  typeof window !== 'undefined' &&
+  isBrowser &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-// TODO: replace with your actual Render URL once confirmed.
-const PRODUCTION_API_BASE = 'https://YOUR-RENDER-APP.onrender.com';
-export const API_BASE = isLocal ? 'http://127.0.0.1:8000' : PRODUCTION_API_BASE;
+const envApiUrl = import.meta.env.VITE_API_URL;
+import { getNetwork } from '../config/networks';
+export const API_BASE = envApiUrl || (isLocal ? 'http://127.0.0.1:8000' : (isBrowser ? window.location.origin : ''));
 
 export async function fetchChains() {
   const res = await fetch(`${API_BASE}/chains`);
@@ -15,11 +16,16 @@ export async function fetchChains() {
   return res.json();
 }
 
-export async function analyzeToken(chainId, address) {
+export async function analyzeToken(chainType, address) {
+  const selectedNetwork = getNetwork(chainType);
+  const network = selectedNetwork.chainType === 'solana' ? { chain_type: 'solana' } : { chain_type: 'evm', chain_id: selectedNetwork.chainId };
+  const payload = network.chain_type === 'solana'
+    ? { chain_type: 'solana', address }
+    : { ...network, address };
   const res = await fetch(`${API_BASE}/analyze/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chain_id: chainId, address }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -28,4 +34,32 @@ export async function analyzeToken(chainId, address) {
   return res.json();
 }
 
-export const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+export async function analyzeWallet(address, chainType) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  const payload = chainType ? { address, chain_type: chainType } : { address };
+
+  try {
+    const res = await fetch(`${API_BASE}/analyze/wallet`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body?.status === 'error') {
+      const message = body?.summary || body?.detail || body?.error?.message || `Request failed (HTTP ${res.status})`;
+      throw new Error(message);
+    }
+    return body;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Wallet analysis timed out after 15 seconds. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
