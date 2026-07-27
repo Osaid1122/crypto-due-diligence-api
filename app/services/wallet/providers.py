@@ -212,7 +212,7 @@ class HeliusProvider:
                             "params": {
                                 "ownerAddress": address,
                                 "page": 1,
-                                "limit": 1000,
+                                "limit": 100,
                                 "displayOptions": {"showFungible": True, "showNativeBalance": True},
                             },
                         },
@@ -260,7 +260,7 @@ class HeliusProvider:
             # Enhanced Transactions is the supported address-history endpoint.
             try:
                 tx_resp = await asyncio.wait_for(
-                    client.get(f"{transaction_url}/addresses/{address}/transactions", params=auth_params),
+                    client.get(f"{transaction_url}/addresses/{address}/transactions", params={**auth_params, "limit": 100},
                     timeout=20.0,
                 )
                 tx_resp.raise_for_status()
