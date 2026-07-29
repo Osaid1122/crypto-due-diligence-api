@@ -1,13 +1,83 @@
-from fastapi import APIRouter, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from app.models.token import TokenAnalyzeRequest, TokenAnalyzeResponse
 from app.services import chain_adapter, goplus, scoring, ai
 
-router = APIRouter(prefix="/analyze", tags=["analyze"])
+router = APIRouter(prefix="/analyze", tags=["Token analysis"])
+
+TOKEN_RESPONSE_EXAMPLE: dict[str, Any] = {
+    "token_name": "USD Coin",
+    "token_symbol": "USDC",
+    "chain_type": "evm",
+    "network": "ethereum",
+    "chain_id": 1,
+    "risk_score": 18,
+    "risk_level": "Low",
+    "confidence": 0.92,
+    "confidence_known_signals": 23,
+    "confidence_total_signals": 25,
+    "summary": "The deterministic assessment found a low-risk profile based on available provider signals.",
+    "top_concerns": ["Review current ownership and liquidity conditions before interacting."],
+    "recommended_checks": ["Verify the contract address through an official project source."],
+    "positive_signals": ["No unrestricted mint function was reported."],
+    "triggered_rules": [],
+    "not_triggered_rules": [{"rule": "mintable", "reason": "No unrestricted minting signal reported."}],
+    "normalized_signals": {"is_mintable": False, "is_honeypot": False},
+    "technical_data": {"token_name": "USD Coin"},
+}
+
+RAW_PROVIDER_RESPONSE_EXAMPLE: dict[str, Any] = {
+    "result": {
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+            "token_name": "USD Coin",
+            "token_symbol": "USDC",
+            "is_honeypot": "0",
+        }
+    }
+}
 
 
-@router.post("/token", response_model=TokenAnalyzeResponse)
-async def analyze_token(payload: TokenAnalyzeRequest):
+@router.post(
+    "/token",
+    response_model=TokenAnalyzeResponse,
+    summary="Generate a token-security assessment",
+    description="""
+Generate a provider-backed, deterministic security assessment for an ERC-20 token
+or Solana SPL mint. The API normalizes live security data, applies transparent
+risk rules, and returns both the underlying signals and an AI-assisted explanation.
+
+Use `chain_type="evm"` with a supported `chain_id` for EVM contracts. Use
+`chain_type="solana"` for SPL mints; `chain_id` is not needed for Solana.
+
+The `risk_score` expresses detected risk from 0 (lowest) to 100 (highest). It is
+not investment advice; always independently verify an address and current on-chain state.
+""",
+    responses={
+        200: {"description": "Completed token-security report.", "content": {"application/json": {"example": TOKEN_RESPONSE_EXAMPLE}}},
+        404: {"description": "The requested network is not configured or was not found."},
+        422: {"description": "The request did not contain a valid address or chain selection."},
+        502: {"description": "The upstream token-security provider could not complete the lookup."},
+    },
+)
+async def analyze_token(
+    payload: TokenAnalyzeRequest = Body(
+        ...,
+        openapi_examples={
+            "ethereum_usdc": {
+                "summary": "Ethereum ERC-20 token",
+                "description": "Analyze the USDC contract on Ethereum mainnet.",
+                "value": {"address": "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "chain_type": "evm", "chain_id": 1},
+            },
+            "solana_wrapped_sol": {
+                "summary": "Solana SPL mint",
+                "description": "Analyze wrapped SOL through the Solana security-data path.",
+                "value": {"address": "So11111111111111111111111111111111111111112", "chain_type": "solana"},
+            },
+        },
+    ),
+):
     try:
         network = chain_adapter.get_network(payload.chain_type, payload.chain_id)
         raw, normalized = await chain_adapter.fetch_and_normalize(
@@ -51,12 +121,28 @@ async def analyze_token(payload: TokenAnalyzeRequest):
     )
 
 
-@router.get("/token/raw")
-async def analyze_token_raw(chain_id: int, address: str):
-    """Debug endpoint: returns the raw GoPlus EVM response with no scoring or
-    AI layer. Useful for inspecting real fields before tuning the scoring
-    engine. EVM-only — kept as-is; Solana debugging goes through
-    scripts/validate_solana.py during development instead."""
+@router.get(
+    "/token/raw",
+    summary="Retrieve raw EVM token-security provider data",
+    description="""
+Return the unprocessed EVM token-security payload from the upstream provider.
+
+This diagnostic endpoint does not normalize data, calculate a risk score, or
+generate an explanation. Use `POST /analyze/token` for the public security report.
+`chain_id` must identify a provider-supported EVM network, and `address` must be
+an EVM contract address.
+""",
+    responses={
+        200: {"description": "Raw upstream provider payload. Fields vary by network and provider response.", "content": {"application/json": {"example": RAW_PROVIDER_RESPONSE_EXAMPLE}}},
+        404: {"description": "The requested chain is not supported by the upstream provider."},
+        422: {"description": "A required query parameter was missing or invalid."},
+        502: {"description": "The upstream token-security provider could not complete the lookup."},
+    },
+)
+async def analyze_token_raw(
+    chain_id: int = Query(..., description="Provider-supported EVM chain ID, such as 1 for Ethereum or 196 for X Layer.", examples=[1]),
+    address: str = Query(..., description="0x-prefixed EVM token contract address to inspect.", examples=["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]),
+):
     try:
         raw = await goplus.get_token_security(str(chain_id), address)
     except ValueError as e:
