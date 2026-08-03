@@ -21,6 +21,27 @@
   margin: 0 auto;
 }
 
+.layout-footer {
+  padding: var(--space-4) var(--content-padding);
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  text-align: center;
+}
+
+.layout-footer-credit {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #8b8b8b);
+}
+
+.layout-footer-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.layout-footer-link:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 1024px) {
   .layout-main { margin-left: 0; }
   .layout-content { padding: var(--space-4); }
