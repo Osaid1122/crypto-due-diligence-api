@@ -5,7 +5,6 @@ const PROVIDER_TYPES = {
   metamask: 'MetaMask',
   rabby: 'Rabby',
   phantom: 'Phantom',
-  walletconnect: 'WalletConnect',
 };
 
 export async function connectWallet(providerType = 'metamask') {
