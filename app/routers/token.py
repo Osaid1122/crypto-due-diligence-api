@@ -1,9 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from app.models.token import TokenAnalyzeRequest, TokenAnalyzeResponse
 from app.services import chain_adapter, goplus, scoring, ai
+from app.core.rate_limit import limiter, ANALYZE_RATE_LIMIT
 
 router = APIRouter(prefix="/analyze", tags=["Token analysis"])
 
@@ -23,7 +24,7 @@ TOKEN_RESPONSE_EXAMPLE: dict[str, Any] = {
     "recommended_checks": ["Verify the contract address through an official project source."],
     "positive_signals": ["No unrestricted mint function was reported."],
     "triggered_rules": [],
-    "not_triggered_rules": [{"rule": "mintable", "reason": "No unrestricted minting signal reported."}],
+    "not_triggered_rules": [{"field": "mintable", "reason": "No unrestricted minting signal reported."}],
     "normalized_signals": {"is_mintable": False, "is_honeypot": False},
     "technical_data": {"token_name": "USD Coin"},
 }
@@ -61,7 +62,9 @@ not investment advice; always independently verify an address and current on-cha
         502: {"description": "The upstream token-security provider could not complete the lookup."},
     },
 )
+@limiter.limit(ANALYZE_RATE_LIMIT)
 async def analyze_token(
+    request: Request,
     payload: TokenAnalyzeRequest = Body(
         ...,
         openapi_examples={

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 
 from app.models.wallet import WalletAnalyzeRequest, WalletAnalyzeResponse
 from app.services.wallet.service import analyze_wallet
+from app.core.rate_limit import limiter, ANALYZE_RATE_LIMIT
 
 router = APIRouter(tags=["Wallet analysis"])
 
@@ -62,7 +63,9 @@ observed portfolio risk. This report is a due-diligence aid, not investment advi
         502: {"description": "An unexpected gateway-level failure occurred while starting the analysis."},
     },
 )
+@limiter.limit(ANALYZE_RATE_LIMIT)
 async def analyze_wallet_route(
+    request: Request,
     payload: WalletAnalyzeRequest = Body(
         ...,
         openapi_examples={

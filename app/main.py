@@ -1,11 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
 
 load_dotenv()
 
 from app.routers import token, wallet
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.models.common import ServiceStatusResponse, SupportedChainsResponse
 
 app = FastAPI(
@@ -37,6 +41,14 @@ applications, and blockchain security workflows.
     contact={"name": "Crypto Due Diligence API Support"},
     license_info={"name": "Hackathon demonstration service"},
 )
+
+
+# Per-IP rate limiting (slowapi). The limiter instance lives in
+# app.core.rate_limit so routers can import it to decorate endpoints; here we
+# register it on the app, install the 429 handler, and add the middleware.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 
 app.add_middleware(

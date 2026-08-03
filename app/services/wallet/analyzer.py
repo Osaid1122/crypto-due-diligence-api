@@ -9,6 +9,13 @@ from app.services import chain_adapter, scoring
 _CACHE_TTL_SECONDS = 300
 _ASSET_CACHE: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
 
+# Cap concurrent per-asset GoPlus lookups. A wallet with many tokens fans out
+# one lookup per asset; without a bound, a large portfolio would fire all of
+# them simultaneously and blow through GoPlus's 30/min ceiling. 5 concurrent
+# keeps the burst well under that while still parallelizing scans.
+_GOPLUS_CONCURRENCY = 5
+_goplus_semaphore = asyncio.Semaphore(_GOPLUS_CONCURRENCY)
+
 
 async def analyze_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     tasks = [_analyze_asset(asset) for asset in assets if (asset.get("address") or asset.get("contract_address"))]
@@ -44,10 +51,13 @@ async def _analyze_asset(asset: dict[str, Any]) -> dict[str, Any] | None:
         return cached[1]
 
     try:
-        raw, normalized = await asyncio.wait_for(
-            chain_adapter.fetch_and_normalize(asset.get("chain_type", "evm"), asset.get("chain_id"), address),
-            timeout=15.0,
-        )
+        # Bound concurrent GoPlus lookups so a large portfolio doesn't fire
+        # unbounded simultaneous requests — see _goplus_semaphore above.
+        async with _goplus_semaphore:
+            raw, normalized = await asyncio.wait_for(
+                chain_adapter.fetch_and_normalize(asset.get("chain_type", "evm"), asset.get("chain_id"), address),
+                timeout=15.0,
+            )
     except Exception:
         result = {
             "address": address,
