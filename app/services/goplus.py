@@ -15,6 +15,7 @@ validation (2026-07-19) that also applied here, silently, the whole time.
 import httpx
 
 from app.services.goplus_auth import get_access_token
+from app.services.retry import send_with_retry
 
 BASE_URL = "https://api.gopluslabs.io/api/v1"
 
@@ -30,12 +31,13 @@ async def get_token_security(chain_id: str, address: str) -> dict:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        resp = await client.get(
+        resp = await send_with_retry(
+            client,
+            "GET",
             f"{BASE_URL}/token_security/{chain_id}",
             params={"contract_addresses": address.lower()},
             headers=headers,
         )
-        resp.raise_for_status()
         payload = resp.json()
 
         if payload.get("code") != 1:

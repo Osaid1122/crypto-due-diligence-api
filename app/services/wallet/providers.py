@@ -8,6 +8,8 @@ from typing import Any, Optional, Protocol
 import httpx
 import logging
 
+from app.services.retry import send_with_retry
+
 EVM_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 SOLANA_ADDRESS_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 
@@ -25,8 +27,7 @@ class AlchemyProvider:
 
         base_url = f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
         async with httpx.AsyncClient(timeout=10.0) as client:
-            token_res = await asyncio.wait_for(client.get(f"{base_url}/getTokenBalances", params={"address": address}), timeout=15.0)
-            token_res.raise_for_status()
+            token_res = await asyncio.wait_for(send_with_retry(client, "GET", f"{base_url}/getTokenBalances", params={"address": address}), timeout=15.0)
             token_payload = token_res.json()
 
             assets: list[dict[str, Any]] = []
@@ -45,12 +46,13 @@ class AlchemyProvider:
                     "decimals": item.get("decimals") or 18,
                 })
 
-            nft_res = await asyncio.wait_for(client.get(f"{base_url}/getNFTs", params={"owner": address, "pageSize": 100}), timeout=15.0)
-            nft_res.raise_for_status()
+            nft_res = await asyncio.wait_for(send_with_retry(client, "GET", f"{base_url}/getNFTs", params={"owner": address, "pageSize": 100}), timeout=15.0)
             nft_payload = nft_res.json()
             nft_count = int(nft_payload.get("totalCount") or 0)
 
-            transfer_res = await asyncio.wait_for(client.get(
+            transfer_res = await asyncio.wait_for(send_with_retry(
+                client,
+                "GET",
                 f"{base_url}/getAssetTransfers",
                 params={
                     "fromAddress": address,
@@ -59,7 +61,6 @@ class AlchemyProvider:
                     "maxCount": 100,
                 },
             ), timeout=15.0)
-            transfer_res.raise_for_status()
             transfer_payload = transfer_res.json()
             transactions = transfer_payload.get("transfers") or []
 
@@ -94,10 +95,9 @@ class MoralisProvider:
             try:
                 # Token balances: /wallets/{address}/tokens
                 token_resp = await asyncio.wait_for(
-                    client.get(f"{base_url}/wallets/{address}/tokens", params={"chain": chain_param}, headers=headers),
+                    send_with_retry(client, "GET", f"{base_url}/wallets/{address}/tokens", params={"chain": chain_param}, headers=headers),
                     timeout=15.0,
                 )
-                token_resp.raise_for_status()
                 token_payload = token_resp.json()
             except httpx.HTTPStatusError as exc:
                 logger.warning("Moralis token balances request failed: %s %s", exc.response.status_code, exc.response.text)
@@ -135,10 +135,9 @@ class MoralisProvider:
             # NFTs: /{address}/nft (per docs)
             try:
                 nft_resp = await asyncio.wait_for(
-                    client.get(f"{base_url}/{address}/nft", params={"chain": chain_param, "format": "decimal"}, headers=headers),
+                    send_with_retry(client, "GET", f"{base_url}/{address}/nft", params={"chain": chain_param, "format": "decimal"}, headers=headers),
                     timeout=15.0,
                 )
-                nft_resp.raise_for_status()
                 nft_payload = nft_resp.json()
             except httpx.HTTPStatusError as exc:
                 logger.warning("Moralis NFT request failed: %s %s", exc.response.status_code, exc.response.text)
@@ -156,10 +155,9 @@ class MoralisProvider:
             # Transactions: wallet native txs endpoint is /{address}
             try:
                 tx_resp = await asyncio.wait_for(
-                    client.get(f"{base_url}/{address}", params={"chain": chain_param}, headers=headers),
+                    send_with_retry(client, "GET", f"{base_url}/{address}", params={"chain": chain_param}, headers=headers),
                     timeout=20.0,
                 )
-                tx_resp.raise_for_status()
                 tx_payload = tx_resp.json()
             except httpx.HTTPStatusError as exc:
                 logger.warning("Moralis transactions request failed: %s %s", exc.response.status_code, exc.response.text)
@@ -201,7 +199,9 @@ class HeliusProvider:
             # treated as an empty portfolio.
             try:
                 assets_resp = await asyncio.wait_for(
-                    client.post(
+                    send_with_retry(
+                        client,
+                        "POST",
                         rpc_url,
                         params=auth_params,
                         headers={"Content-Type": "application/json"},
@@ -219,7 +219,6 @@ class HeliusProvider:
                     ),
                     timeout=15.0,
                 )
-                assets_resp.raise_for_status()
                 assets_payload = assets_resp.json()
                 if assets_payload.get("error"):
                     raise RuntimeError(f"Helius DAS error: {assets_payload['error']}")
@@ -260,13 +259,14 @@ class HeliusProvider:
             # Enhanced Transactions is the supported address-history endpoint.
             try:
                 tx_resp = await asyncio.wait_for(
-                    client.get(
+                    send_with_retry(
+                        client,
+                        "GET",
                         f"{transaction_url}/addresses/{address}/transactions",
                         params={**auth_params, "limit": 100},
                     ),
                     timeout=20.0,
                 )
-                tx_resp.raise_for_status()
                 tx_payload = tx_resp.json()
             except httpx.HTTPStatusError as exc:
                 logger.warning("Helius transaction request failed: status=%s body=%s", exc.response.status_code, exc.response.text)

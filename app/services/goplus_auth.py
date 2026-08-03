@@ -35,6 +35,7 @@ import time
 import httpx
 
 from app.core.config import get_settings
+from app.services.retry import send_with_retry
 
 TOKEN_URL = "https://api.gopluslabs.io/api/v1/token"
 
@@ -63,7 +64,9 @@ async def get_access_token(client: httpx.AsyncClient) -> str | None:
     raw = f"{settings.goplus_app_key}{ts}{settings.goplus_app_secret}"
     sign = hashlib.sha1(raw.encode()).hexdigest()
 
-    resp = await client.post(
+    resp = await send_with_retry(
+        client,
+        "POST",
         TOKEN_URL,
         json={
             "app_key": settings.goplus_app_key,
@@ -71,7 +74,6 @@ async def get_access_token(client: httpx.AsyncClient) -> str | None:
             "sign": sign,
         },
     )
-    resp.raise_for_status()
     data = resp.json()
     token = data.get("result", {}).get("access_token")
     return _strip_bearer_prefix(token) if token else None
