@@ -9,6 +9,11 @@ def is_numeric_risk_score(value: Any) -> bool:
 
 
 def build_portfolio_score(assets: list[dict[str, Any]]) -> dict[str, Any]:
+    # NOTE: this portfolio score is INVERTED relative to the token-level score in
+    # app/services/scoring.py. Here, higher = safer (100 is a clean portfolio);
+    # there, higher = riskier (100 is maximum detected token risk). The inversion
+    # happens at `score = 100 - average` below, where `average` is the mean of the
+    # token-level (higher = riskier) asset scores.
     if not assets:
         return {
             "score": 0,
