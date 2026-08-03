@@ -1,6 +1,7 @@
+import os
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Header, HTTPException, Query, Request
 
 from app.models.token import TokenAnalyzeRequest, TokenAnalyzeResponse
 from app.services import chain_adapter, goplus, scoring, ai
@@ -145,7 +146,15 @@ an EVM contract address.
 async def analyze_token_raw(
     chain_id: int = Query(..., description="Provider-supported EVM chain ID, such as 1 for Ethereum or 196 for X Layer.", examples=[1]),
     address: str = Query(..., description="0x-prefixed EVM token contract address to inspect.", examples=["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"]),
+    x_debug_key: str | None = Header(default=None, alias="X-Debug-Key"),
 ):
+    # Debug-only endpoint. It's gated behind a shared secret and returns 404 —
+    # not 401/403 — for a missing/wrong key (and when DEBUG_API_KEY is unset), so
+    # its existence isn't revealed to unauthorized callers.
+    debug_key = os.getenv("DEBUG_API_KEY")
+    if not debug_key or x_debug_key != debug_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
     try:
         raw = await goplus.get_token_security(str(chain_id), address)
     except ValueError as e:
