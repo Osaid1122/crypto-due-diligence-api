@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -6,6 +8,16 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 
 load_dotenv()
+
+# CORS origins are read from ALLOWED_ORIGINS (comma-separated), falling back to
+# the known production frontend domains plus the local Vite dev server. This
+# replaces the previous wildcard, which allowed any site to call the API.
+_DEFAULT_ALLOWED_ORIGINS = "https://cryptoduediligence.dev,https://www.cryptoduediligence.dev,http://localhost:5173"
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", _DEFAULT_ALLOWED_ORIGINS).split(",")
+    if origin.strip()
+]
 
 from app.routers import token, wallet
 from app.core.config import get_settings
@@ -53,7 +65,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # hackathon demo — tighten before any real deployment
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
