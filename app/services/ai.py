@@ -58,34 +58,51 @@ async def explain_score(token_name: str, token_symbol: str, score_data: dict) ->
     })
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        for attempt in range(2):  # try once, retry once if the model returns malformed JSON
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                json={
-                    "model": settings.openai_model,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    "temperature": 0.3,
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"]
-            cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        # Try once, retry once. A retry is warranted whether the failure was a
+        # transient upstream error (429/5xx/timeout/connection reset) or a
+        # malformed model response. Any failure that survives the retry must NOT
+        # propagate: an uncaught exception here becomes a Starlette 500 that is
+        # generated OUTSIDE CORSMiddleware and therefore carries no
+        # Access-Control-Allow-Origin, which the browser reports as a CORS
+        # error. Token analysis must degrade to the templated fallback instead.
+        for attempt in range(2):
             try:
+                resp = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                    json={
+                        "model": settings.openai_model,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "temperature": 0.3,
+                    },
+                )
+                resp.raise_for_status()
+                raw = resp.json()["choices"][0]["message"]["content"]
+                cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
                 return json.loads(cleaned)
-            except json.JSONDecodeError:
+            except (
+                httpx.HTTPError,        # base for TimeoutException, ConnectError, HTTPStatusError, etc.
+                httpx.HTTPStatusError,  # explicitly, though HTTPError already covers it
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                KeyError,               # unexpected OpenAI response shape
+                ValueError,             # includes json.JSONDecodeError (malformed content)
+            ):
                 if attempt == 0:
                     continue  # retry once
-                # Final fallback: templated explanation rather than a hard failure
-                return {
-                    "summary": f"{token_name} ({token_symbol}) scored {score_data['score']}/100 "
-                               f"({score_data['risk_level']} risk).",
-                    "top_concerns": score_data["reasons"][:3],
-                    "recommended_checks": [
-                        "Review the full technical_data for details on each flagged item.",
-                        "Verify contract ownership and liquidity lock status independently.",
-                    ],
-                }
+                break         # fall through to the templated fallback below
+
+    # Final fallback: a complete, templated explanation rather than a hard
+    # failure, so the endpoint always returns a full token analysis.
+    return {
+        "summary": f"{token_name} ({token_symbol}) scored {score_data['score']}/100 "
+                   f"({score_data['risk_level']} risk).",
+        "top_concerns": score_data["reasons"][:3],
+        "recommended_checks": [
+            "Review the full technical_data for details on each flagged item.",
+            "Verify contract ownership and liquidity lock status independently.",
+        ],
+    }

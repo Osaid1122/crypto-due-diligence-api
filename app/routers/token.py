@@ -92,12 +92,26 @@ async def analyze_token(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"GoPlus lookup failed: {e}")
 
-    score_data = scoring.score_token(normalized)
+    # Defense in depth: everything below runs AFTER the GoPlus try/except, so an
+    # unexpected exception here (scoring bug, or an AI failure that somehow
+    # escapes explain_score's own fallback) would otherwise propagate to
+    # Starlette's ServerErrorMiddleware as a raw 500 — which is generated
+    # OUTSIDE CORSMiddleware and therefore has no Access-Control-Allow-Origin,
+    # surfacing in the browser as a CORS error. Converting it to an
+    # HTTPException keeps the response inside CORSMiddleware so it retains CORS
+    # headers. This is a backstop; explain_score (Fix A) already degrades
+    # gracefully, so this path should effectively never be hit.
+    try:
+        score_data = scoring.score_token(normalized)
 
-    token_name = normalized.get("token_name")
-    token_symbol = normalized.get("token_symbol")
+        token_name = normalized.get("token_name")
+        token_symbol = normalized.get("token_symbol")
 
-    explanation = await ai.explain_score(token_name or "Unknown token", token_symbol or "?", score_data)
+        explanation = await ai.explain_score(token_name or "Unknown token", token_symbol or "?", score_data)
+    except HTTPException:
+        raise  # already a structured API error; let it through unchanged
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI explanation failed: {e}")
 
     normalized_display = {
         k: v for k, v in normalized.items() if not k.startswith("_")
