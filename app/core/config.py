@@ -73,3 +73,56 @@ class Settings:
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# ---------------------------------------------------------------------------
+# Wallet-data provider credentials & endpoints
+# ---------------------------------------------------------------------------
+# Single source of truth for the keys/URLs the wallet providers
+# (app/services/wallet/providers.py) use, previously read via scattered
+# os.getenv() calls inside each provider. These are intentionally *functions*
+# read at call time rather than attributes on the cached Settings singleton:
+# the environment stays authoritative per request, and tests can toggle a
+# provider on/off with monkeypatch.setenv/delenv without fighting lru_cache.
+#
+# Default endpoint URLs match the previous behaviour exactly; each is
+# overridable via the corresponding *_URL environment variable.
+
+# EVM (Ethereum) wallet providers.
+ALCHEMY_ETH_BASE_URL_DEFAULT = "https://eth-mainnet.g.alchemy.com/v2"
+MORALIS_BASE_URL_DEFAULT = "https://deep-index.moralis.io/api/v2.2"
+
+# Solana wallet provider (Helius).
+HELIUS_RPC_URL_DEFAULT = "https://mainnet.helius-rpc.com/"
+HELIUS_TRANSACTION_URL_DEFAULT = "https://api-mainnet.helius-rpc.com/v0"
+
+
+def alchemy_api_key() -> str:
+    """Alchemy key. ALCHEMY_API_KEY is preferred; ALCHEMY_API_KEY_ETH is kept
+    as a legacy alias so existing deployments keep working."""
+    return os.getenv("ALCHEMY_API_KEY") or os.getenv("ALCHEMY_API_KEY_ETH") or ""
+
+
+def alchemy_eth_base_url() -> str:
+    """Alchemy Ethereum-mainnet base URL (without the trailing key segment)."""
+    return os.getenv("ALCHEMY_ETH_BASE_URL", ALCHEMY_ETH_BASE_URL_DEFAULT)
+
+
+def moralis_api_key() -> str:
+    return os.getenv("MORALIS_API_KEY") or ""
+
+
+def moralis_base_url() -> str:
+    return os.getenv("MORALIS_BASE_URL", MORALIS_BASE_URL_DEFAULT)
+
+
+def helius_api_key() -> str:
+    return os.getenv("HELIUS_API_KEY") or ""
+
+
+def helius_rpc_url() -> str:
+    return os.getenv("HELIUS_RPC_URL", HELIUS_RPC_URL_DEFAULT)
+
+
+def helius_transaction_url() -> str:
+    return os.getenv("HELIUS_TRANSACTION_URL", HELIUS_TRANSACTION_URL_DEFAULT)

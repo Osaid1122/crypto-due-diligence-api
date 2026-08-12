@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 from typing import Any, Optional, Protocol
 
 import httpx
 import logging
 
+from app.core import config
 from app.services.retry import send_with_retry
 
 EVM_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
@@ -20,12 +20,30 @@ class WalletProvider(Protocol):
 
 
 class AlchemyProvider:
+    """Ethereum wallet-data provider used as the EVM fallback after Moralis.
+
+    VERIFICATION NOTE (2026-08-12): the Alchemy request/response format below
+    could NOT be conclusively verified. No captured Alchemy response exists in
+    this repo (only moralis_raw_response.json and helius_raw_response.json are
+    present), and external Alchemy documentation was unavailable at the time of
+    this change. Accordingly the HTTP shape — GET path-style endpoints
+    (getTokenBalances / getNFTs / getAssetTransfers), their query params, and the
+    response keys read below (tokenBalances / contractAddress / tokenBalance /
+    totalCount / transfers) — is preserved AS-IS and NOT rewritten from
+    assumption. What IS verified locally and covered by tests: the method reads
+    its key via the centralized config, and the returned payload conforms to the
+    contract the wallet service/analyzer consume (assets[] with
+    address/chain_type/chain_id/name/symbol/balance/decimals, plus balances,
+    transactions, nft_count, and metadata), remaining robust to empty/missing
+    fields. See tests/test_wallet_providers.py.
+    """
+
     async def fetch_wallet_data(self, chain_type: str, address: str) -> dict[str, Any]:
-        api_key = os.getenv("ALCHEMY_API_KEY") or os.getenv("ALCHEMY_API_KEY_ETH")
+        api_key = config.alchemy_api_key()
         if not api_key:
             raise RuntimeError("Alchemy API key not configured")
 
-        base_url = f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
+        base_url = f"{config.alchemy_eth_base_url()}/{api_key}"
         async with httpx.AsyncClient(timeout=10.0) as client:
             token_res = await asyncio.wait_for(send_with_retry(client, "GET", f"{base_url}/getTokenBalances", params={"address": address}), timeout=15.0)
             token_payload = token_res.json()
@@ -79,32 +97,35 @@ class MoralisProvider:
 
         Uses the unified Wallet endpoints documented at https://docs.moralis.com/data-api
         Falls back to defensive parsing so the rest of the pipeline keeps its expected schema.
+
+        Fallback contract: the token-balances request is the PRIMARY data source
+        for the portfolio. If it fails hard (network error, 4xx/5xx after
+        retries), this method must RAISE so fetch_wallet_portfolio can fall back
+        to Alchemy. Previously every request — including this one — swallowed its
+        exception and returned an empty-but-valid payload, so Moralis always
+        "succeeded" and the Alchemy fallback was never reached even when Moralis
+        was down or misconfigured. The NFT and transaction requests remain
+        non-fatal (a portfolio can still be scored from token balances alone).
         """
-        api_key = os.getenv("MORALIS_API_KEY")
+        api_key = config.moralis_api_key()
         if not api_key:
             raise RuntimeError("Moralis API key not configured")
 
         logger = logging.getLogger(__name__)
-        base_url = os.getenv("MORALIS_BASE_URL", "https://deep-index.moralis.io/api/v2.2")
+        base_url = config.moralis_base_url()
         headers = {"x-api-key": api_key}
 
         # Determine chain param for Moralis (use 'eth' for evm)
         chain_param = "eth" if chain_type != "solana" else "solana"
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                # Token balances: /wallets/{address}/tokens
-                token_resp = await asyncio.wait_for(
-                    send_with_retry(client, "GET", f"{base_url}/wallets/{address}/tokens", params={"chain": chain_param}, headers=headers),
-                    timeout=15.0,
-                )
-                token_payload = token_resp.json()
-            except httpx.HTTPStatusError as exc:
-                logger.warning("Moralis token balances request failed: %s %s", exc.response.status_code, exc.response.text)
-                token_payload = {}
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.exception("Moralis token balances request error: %s", exc)
-                token_payload = {}
+            # Token balances: /wallets/{address}/tokens — PRIMARY source. A hard
+            # failure here propagates so the orchestrator falls back to Alchemy.
+            token_resp = await asyncio.wait_for(
+                send_with_retry(client, "GET", f"{base_url}/wallets/{address}/tokens", params={"chain": chain_param}, headers=headers),
+                timeout=15.0,
+            )
+            token_payload = token_resp.json()
 
             assets: list[dict[str, Any]] = []
             # Moralis may return tokens under different keys depending on endpoint/version
@@ -184,13 +205,13 @@ class MoralisProvider:
 
 class HeliusProvider:
     async def fetch_wallet_data(self, chain_type: str, address: str) -> dict[str, Any]:
-        api_key = os.getenv("HELIUS_API_KEY")
+        api_key = config.helius_api_key()
         if not api_key:
             raise RuntimeError("Helius API key not configured")
 
         logger = logging.getLogger(__name__)
-        rpc_url = os.getenv("HELIUS_RPC_URL", "https://mainnet.helius-rpc.com/")
-        transaction_url = os.getenv("HELIUS_TRANSACTION_URL", "https://api-mainnet.helius-rpc.com/v0")
+        rpc_url = config.helius_rpc_url()
+        transaction_url = config.helius_transaction_url()
         auth_params = {"api-key": api_key}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -299,9 +320,13 @@ async def fetch_wallet_portfolio(chain_type: str, address: str, provider: Option
     for provider_instance in providers:
         try:
             return await asyncio.wait_for(provider_instance.fetch_wallet_data(chain_type, address), timeout=15.0)
-        except asyncio.TimeoutError as exc:  # pragma: no cover - defensive fallback
+        except asyncio.TimeoutError:
+            # A slow/hung provider must not sink the whole request — fall through
+            # to the next provider in the chain (Moralis -> Alchemy for EVM).
             last_error = TimeoutError("Wallet provider request timed out")
-        except Exception as exc:  # pragma: no cover - defensive fallback
+        except Exception as exc:
+            # Any hard provider failure (missing key, network error, HTTP 4xx/5xx
+            # after retries) falls through to the next provider.
             last_error = exc
     if last_error is not None:
         raise RuntimeError(f"No wallet provider could fetch data: {last_error}") from last_error

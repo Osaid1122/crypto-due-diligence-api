@@ -14,5 +14,13 @@ services:
         sync: false
       - key: GOPLUS_APP_SECRET
         sync: false
+      # Wallet-data providers (POST /analyze/wallet). EVM: Moralis -> Alchemy
+      # fallback; Solana: Helius. Set via the Render dashboard, not committed.
+      - key: MORALIS_API_KEY
+        sync: false
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: HELIUS_API_KEY
+        sync: false
       - key: ALLOWED_ORIGINS
         value: https://cryptoduediligence.dev,https://www.cryptoduediligence.dev
