@@ -52,3 +52,55 @@ SOLANA_USDC = {
     "transfer_hook_upgradable": {"authority": [], "status": "0"},
     "trusted_token": 1,
 }
+
+
+# Real GoPlus Solana Token Security response for TOES (TOESCOIN), a pump.fun
+# token, captured via live authenticated call on 2026-08-08. Kept as a
+# permanent regression fixture for the ECONOMIC signals (absolute TVL + 24h
+# volume) and the severity-floor behaviour: its authorities are all clean
+# (mint/freeze revoked, immutable, not closable) yet its liquidity is both
+# concentrated (2 pools, ~100% share) AND economically dead ($12.51 total TVL,
+# $0 24h volume). Before the economic signal + severity floor were added, this
+# profile scored "Low" — the exact miscalibration these fixtures now guard
+# against. Trimmed to the fields the normalizer/scoring engine consume; the
+# per-pool `day/week/month.volume` shape is reproduced verbatim from the live
+# response.
+SOLANA_TOES = {
+    "balance_mutable_authority": {"authority": [], "status": "0"},
+    "closable": {"authority": [], "status": "0"},
+    "creators": [],
+    "default_account_state": "1",
+    "default_account_state_upgradable": {"authority": [], "status": "0"},
+    "dex": [
+        {
+            "dex_name": "raydium", "tvl": "12.51", "lp_amount": None, "type": "Concentrated",
+            "day": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+            "week": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+            "month": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+        },
+        {
+            "dex_name": "raydium", "tvl": "0", "lp_amount": None, "type": "Concentrated",
+            "day": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+            "week": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+            "month": {"price_max": "-1", "price_min": "-1", "volume": "0"},
+        },
+    ],
+    "freezable": {"authority": [], "status": "0"},
+    "holder_count": "19745",
+    "holders": [
+        {"account": "EE3zk9Fxp9guair2xeReFxf4TsEXeZFFuWETRna2PkcV", "balance": "24721032.54192", "is_locked": 0, "percent": "0.0247"},
+        {"account": "AxzMpxZ4dPT9C9CKyijEQjL1NvSdFJ343PWZjsxZZvWr", "balance": "22780209.838111", "is_locked": 0, "percent": "0.0228"},
+        {"account": "4AuNoqMnnQQPWad7PqdfbnYauAfxgdfJZyrHG5JDJeJi", "balance": "22593994.818931", "is_locked": 0, "percent": "0.0226"},
+    ],
+    "lp_holders": [],
+    "metadata": {"description": "", "name": "TOES", "symbol": "TOESCOIN", "uri": "https://ipfs.io/ipfs/bafkreibj6kruv7q7fhojtbr4vih3tsvcyzje7qvnwxavtbihfm6gqxh4w4"},
+    "metadata_mutable": {"metadata_upgrade_authority": [], "status": "0"},
+    "mintable": {"authority": [], "status": "0"},
+    "non_transferable": "0",
+    "total_supply": "999944693.435886",
+    "transfer_fee": {},
+    "transfer_fee_upgradable": {"authority": [], "status": "0"},
+    "transfer_hook": [],
+    "transfer_hook_upgradable": {"authority": [], "status": "0"},
+    "trusted_token": 0,
+}

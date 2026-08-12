@@ -31,6 +31,17 @@ STATUS_SHAPE_FIELDS = [
 TRUE_VALUES = {"1", 1, True}
 FALSE_VALUES = {"0", 0, False}
 
+# Canonical Solana incinerator — the well-known, documented burn sink that
+# `solana burn`/account-closing routes tokens to. This is the direct analog of
+# EVM's 0x000...dead / zero address handled in normalizer.py: supply parked here
+# is destroyed, not circulating, so it must be excluded from holder-concentration
+# math or a token whose supply was burned looks artificially concentrated.
+# NOT invented — it is a fixed, publicly known address. base58 is CASE-SENSITIVE,
+# so (unlike the EVM hex addresses) it must be matched verbatim, never lowercased.
+SOLANA_BURN_ADDRESSES = {
+    "1nc1nerator11111111111111111111111111111111",
+}
+
 
 def _status_bool(raw: dict, field: str) -> Optional[bool]:
     entry = raw.get(field)
@@ -44,8 +55,17 @@ def _status_bool(raw: dict, field: str) -> Optional[bool]:
     return None
 
 
-def _top_holder_percent(raw: dict) -> Optional[float]:
+def _real_holders(raw: dict) -> list[dict]:
+    """Holders with the incinerator/burn sink excluded — mirrors the EVM
+    normalizer's _real_holders. Burned supply is destroyed, not circulating, so
+    it must not count toward concentration. Matched verbatim on the `account`
+    field: base58 is case-sensitive and must NOT be lowercased (unlike EVM hex)."""
     holders = raw.get("holders") or []
+    return [h for h in holders if h.get("account") not in SOLANA_BURN_ADDRESSES]
+
+
+def _top_holder_percent(raw: dict) -> Optional[float]:
+    holders = _real_holders(raw)
     if not holders:
         return None
     try:
@@ -84,6 +104,55 @@ def _liquidity_signal(raw: dict) -> tuple[Optional[float], Optional[int]]:
         return top_share, len(dex_pools)
     except (ValueError, TypeError):
         return None, len(dex_pools)
+
+
+def _economic_signal(raw: dict) -> tuple[Optional[float], Optional[int], Optional[float]]:
+    """
+    Returns (total_liquidity_usd, pool_count, total_volume_24h_usd) — absolute
+    economic depth/activity, distinct from the concentration SHARE above.
+
+    Verified against real data: each `dex[]` entry carries a string `tvl`
+    (confirmed on USDC — Orca/Raydium pools) and a nested `day.volume`
+    (confirmed on a real risky token captured 2026-08-08 — see
+    tests/fixtures/real_solana_samples.py::SOLANA_TOES). This is the "the pool
+    is effectively empty / nobody is trading" signal that concentration alone
+    cannot express.
+
+    Critical distinction (a repeatedly-learned lesson in this codebase — see
+    normalizer.py): MISSING != ZERO.
+      * total_liquidity_usd is None only when NO pool carried a tvl at all; a
+        genuine 0.0 (pools exist but hold nothing) is returned as 0.0 and is a
+        real, scoreable signal.
+      * total_volume_24h_usd is None unless AT LEAST ONE pool actually reported
+        a `day.volume` key. USDC's real sample has no volume field, so returning
+        0.0 there would be a false "no trading" signal on the most-traded
+        stablecoin on Solana. Only a present-but-zero volume is reported as 0.0.
+    """
+    dex_pools = raw.get("dex") or []
+    if not dex_pools:
+        return None, None, None
+
+    tvls: list[float] = []
+    volumes: list[float] = []
+    volume_reported = False
+    for p in dex_pools:
+        tvl = p.get("tvl")
+        if tvl is not None:
+            try:
+                tvls.append(float(tvl))
+            except (ValueError, TypeError):
+                pass
+        day = p.get("day")
+        if isinstance(day, dict) and day.get("volume") is not None:
+            volume_reported = True
+            try:
+                volumes.append(float(day.get("volume")))
+            except (ValueError, TypeError):
+                pass
+
+    total_tvl = sum(tvls) if tvls else None
+    total_volume = sum(volumes) if volume_reported else None
+    return total_tvl, len(dex_pools), total_volume
 
 
 def normalize_solana(raw: dict) -> dict[str, Any]:
@@ -135,6 +204,25 @@ def normalize_solana(raw: dict) -> dict[str, Any]:
     normalized["top_lp_holder_percent"] = top_lp_pct
     normalized["lp_position_count"] = pool_count
     if top_lp_pct is not None:
+        known_count += 1
+
+    # ---- Economic depth/activity — absolute TVL and 24h volume, distinct from
+    # the concentration SHARE above. Additive and None-safe: these keys are
+    # never populated by the EVM normalizer, so they stay absent for EVM tokens
+    # and never affect EVM scoring or confidence. total_liquidity_usd counts
+    # toward confidence when any pool TVL was present; total_volume_24h_usd only
+    # when at least one pool actually reported a volume (missing != zero — USDC's
+    # real sample has no volume field and must not read as "no trading"). ----
+    total_liq, _pool_count_econ, total_vol = _economic_signal(raw)
+
+    total_count += 1
+    normalized["total_liquidity_usd"] = total_liq
+    if total_liq is not None:
+        known_count += 1
+
+    total_count += 1
+    normalized["total_volume_24h_usd"] = total_vol
+    if total_vol is not None:
         known_count += 1
 
     # is_open_source and is_proxy have no meaningful Solana equivalent —

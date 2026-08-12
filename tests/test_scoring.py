@@ -159,3 +159,97 @@ def test_confidence_high_partial_rounds_to_two_places():
 def test_confidence_defaults_to_zero_when_no_signals():
     result = scoring.score_token({})
     assert result["confidence"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Severity floor — a single high-severity finding must set a minimum risk level
+# regardless of how few points it carries. This is the core miscalibration fix:
+# before it, a lone Critical-severity rule worth 25 pts surfaced as "Low".
+# ---------------------------------------------------------------------------
+
+def test_lone_critical_finding_is_at_least_high():
+    # LP concentration is Critical/25 — well under the old score>=35 "Medium"
+    # and score>=70 "High" numeric cutoffs, so a score-only roll-up called it Low.
+    result = scoring.score_token({"top_lp_holder_percent": 100.0, "lp_position_count": 1})
+    assert result["max_severity"] == "Critical"
+    assert result["risk_level"] == "High"  # floored up from numeric "Low"
+
+
+def test_lone_high_finding_is_at_least_medium():
+    # Effectively-zero liquidity is High/25 — numeric band is "Low" (<35).
+    result = scoring.score_token({"total_liquidity_usd": 12.51})
+    assert result["max_severity"] == "High"
+    assert result["risk_level"] == "Medium"  # floored up from numeric "Low"
+
+
+def test_single_critical_does_not_reach_critical_level():
+    # One isolated Critical is High, not Critical — Critical is reserved for a
+    # named combo or two independent Criticals.
+    result = scoring.score_token({"top_lp_holder_percent": 100.0, "lp_position_count": 1})
+    assert result["risk_level"] == "High"
+
+
+def test_two_independent_criticals_escalate_to_critical():
+    # closable + balance_mutable_authority are two unrelated Critical rules.
+    result = scoring.score_token({"closable": True, "balance_mutable_authority": True})
+    assert result["risk_level"] == "Critical"
+    assert result["score"] >= 90
+
+
+def test_severity_floor_never_downgrades_numeric_level():
+    # Level is max(numeric_band, severity_floor): the floor can only lift, never
+    # lower. A big point total made of individually-mild findings still reads at
+    # its numeric band even though each finding's floor is low.
+    result = scoring.score_token({"top_holder_percent": 30, "insider_percent": 25,
+                                  "total_liquidity_usd": 30_000, "selfdestruct": True,
+                                  "is_open_source": False})
+    numeric_band = "High" if result["score"] >= 70 else "Medium" if result["score"] >= 35 else "Low"
+    order = ["Low", "Medium", "High", "Critical"]
+    assert order.index(result["risk_level"]) >= order.index(numeric_band)
+
+
+# ---------------------------------------------------------------------------
+# Economic signals — absolute liquidity depth and 24h volume (missing != zero).
+# ---------------------------------------------------------------------------
+
+def test_dead_liquidity_triggers_high():
+    rule = _find(scoring.score_token({"total_liquidity_usd": 12.51})["triggered_rules"], "total_liquidity_usd")
+    assert rule["points"] == 25 and rule["severity"] == "High"
+
+
+def test_shallow_liquidity_triggers_medium():
+    rule = _find(scoring.score_token({"total_liquidity_usd": 20_000})["triggered_rules"], "total_liquidity_usd")
+    assert rule["points"] == 10 and rule["severity"] == "Medium"
+
+
+def test_adequate_liquidity_is_clean():
+    result = scoring.score_token({"total_liquidity_usd": 500_000})
+    assert _find(result["triggered_rules"], "total_liquidity_usd") is None
+    assert _find(result["not_triggered_rules"], "total_liquidity_usd") is not None
+
+
+def test_zero_volume_triggers_medium():
+    rule = _find(scoring.score_token({"total_volume_24h_usd": 0.0})["triggered_rules"], "total_volume_24h_usd")
+    assert rule["points"] == 10 and rule["severity"] == "Medium"
+
+
+def test_positive_volume_is_clean():
+    result = scoring.score_token({"total_volume_24h_usd": 250_000})
+    assert _find(result["triggered_rules"], "total_volume_24h_usd") is None
+    assert _find(result["not_triggered_rules"], "total_volume_24h_usd") is not None
+
+
+def test_missing_economic_signals_are_skipped_entirely():
+    # None (absent) must not be scored and must not appear as clean either —
+    # only genuinely-returned data is evaluated (missing != zero).
+    result = scoring.score_token({"is_honeypot": False})
+    assert _find(result["triggered_rules"], "total_liquidity_usd") is None
+    assert _find(result["not_triggered_rules"], "total_liquidity_usd") is None
+    assert _find(result["triggered_rules"], "total_volume_24h_usd") is None
+    assert _find(result["not_triggered_rules"], "total_volume_24h_usd") is None
+
+
+def test_economic_context_surfaced_in_result():
+    result = scoring.score_token({"total_liquidity_usd": 12.51, "total_volume_24h_usd": 0.0})
+    assert result["economic_context"] == {"total_liquidity_usd": 12.51, "total_volume_24h_usd": 0.0}
+

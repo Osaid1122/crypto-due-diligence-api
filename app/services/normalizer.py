@@ -35,7 +35,10 @@ FALSE_VALUES = {"0", 0, False, "false", "False", "no"}
 
 BURN_ADDRESSES = {
     "0x000000000000000000000000000000000000dead",
-    "0x00000000000000000000000000000000000000",
+    # Canonical zero address (0x + 40 hex zeros) — the most common burn sink.
+    # Must be the full 40-char form; a shorter literal silently fails to match
+    # real zero-address holders and inflates concentration on burned supply.
+    "0x0000000000000000000000000000000000000000",
 }
 
 

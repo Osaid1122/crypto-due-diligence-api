@@ -18,6 +18,25 @@ import './Dashboard.css';
 
 const ANALYSIS_STEPS = ['Contract Found', 'Reading Metadata', 'Checking Ownership', 'Checking Liquidity', 'Running AI Analysis', 'Generating Recommendations'];
 
+// Severity ordering mirrors the backend (Critical > High > Medium > Low >
+// Informational). Used only to pick the WORST triggered finding to surface —
+// never to compute a risk level, which is always the backend's `risk_level`.
+const SEVERITY_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1, Informational: 0 };
+
+// The single most severe triggered rule's reason. triggered_rules arrives in
+// rule-declaration order, not severity order, so [0] can be a mild finding while
+// a Critical one sits later; pick by severity so the headline concern is the
+// worst one, never whichever happened to be listed first.
+function mostSevereConcern(triggeredRules) {
+  const rules = Array.isArray(triggeredRules) ? triggeredRules : [];
+  let worst = null;
+  for (const rule of rules) {
+    const rank = SEVERITY_RANK[rule?.severity] ?? 0;
+    if (!worst || rank > worst.rank) worst = { rank, reason: rule?.reason };
+  }
+  return worst?.reason || null;
+}
+
 function signalValue(value) {
   if (value === true) return { label: 'Detected', tone: 'warning' };
   if (value === false) return { label: 'Clear', tone: 'positive' };
@@ -132,9 +151,9 @@ export default function Dashboard() {
     {status === 'success' && result && <><div className="dashboard-analysis-complete" aria-live="polite"><CheckCircle2 size={16} /> Analysis complete — security report ready</div>
       {revealedSections >= 1 && <Card className="dashboard-summary-card dashboard-reveal"><div className="dashboard-hero-grid"><RiskGauge score={result.risk_score} riskLevel={result.risk_level} /><div className="dashboard-summary-meta"><div className="dashboard-token-heading"><div className="dashboard-token-logo"><ChainLogo chain={resultNetwork.key} size={28} /></div><div><span className="dashboard-overline">Token intelligence report</span><h2>{result.token_name || 'Unknown token'}</h2><span className="dashboard-symbol">{result.token_symbol ? `$${result.token_symbol}` : 'Symbol unavailable'}</span></div></div><div className="dashboard-badge-row"><RiskBadge riskLevel={result.risk_level} /><span className="dashboard-chain-badge"><ChainLogo chain={resultNetwork.key} size={14} /> {chainName}</span></div></div><div className="dashboard-hero-side"><div><span>Confidence</span><strong>{confidencePct}%</strong></div><div><span>Analysis time</span><strong>{duration ? `${duration}s` : '—'}</strong></div></div></div><ConfidenceBar confidence={result.confidence} known={result.confidence_known_signals} total={result.confidence_total_signals} /><div className="dashboard-action-row"><Button className="dashboard-export-button" variant="secondary" onClick={downloadJson}><Download size={14} /> Export JSON</Button><a className="btn btn-secondary dashboard-explorer-button" href={explorerUrl} target="_blank" rel="noopener noreferrer" aria-label="View token on blockchain explorer" title="View on explorer"><ExternalLink size={16} /></a></div></Card>}
       <div className="dashboard-workspace"><main className="dashboard-primary-column">
-        {revealedSections >= 2 && <Card className="dashboard-ai-summary dashboard-reveal"><div className="dashboard-ai-heading"><div><Sparkles size={18} /><span>AI verdict</span></div><span className="dashboard-ai-verdict">{result.risk_level} risk</span></div><div className="dashboard-verdict-grid"><div className="dashboard-verdict-primary"><span>Assessment</span><strong>This token appears {String(result.risk_level || 'unknown').toLowerCase()} risk.</strong><p>{result.summary}</p></div><div className="dashboard-verdict-facts"><div><span>Confidence</span><strong>{confidencePct}%</strong></div><div><span>Main concern</span><strong>{result.triggered_rules?.[0]?.reason || 'No material risk signal detected.'}</strong></div><div><span>Recommendation</span><strong>{result.recommended_checks?.[0] || (result.risk_level === 'Low' ? 'Safe for routine monitoring.' : 'Review before interacting.')}</strong></div></div></div></Card>}
+        {revealedSections >= 2 && <Card className="dashboard-ai-summary dashboard-reveal"><div className="dashboard-ai-heading"><div><Sparkles size={18} /><span>AI verdict</span></div><span className="dashboard-ai-verdict">{result.risk_level} risk</span></div><div className="dashboard-verdict-grid"><div className="dashboard-verdict-primary"><span>Assessment</span><strong>This token appears {String(result.risk_level || 'unknown').toLowerCase()} risk.</strong><p>{result.summary}</p></div><div className="dashboard-verdict-facts"><div><span>Confidence</span><strong>{confidencePct}%</strong></div><div><span>Max severity</span><strong>{result.max_severity && result.max_severity !== 'None' ? result.max_severity : 'None detected'}</strong></div><div><span>Main concern</span><strong>{mostSevereConcern(result.triggered_rules) || 'No material risk signal detected.'}</strong></div><div><span>Recommendation</span><strong>{result.recommended_checks?.[0] || (result.risk_level === 'Low' ? 'Safe for routine monitoring.' : 'Review before interacting.')}</strong></div></div></div></Card>}
         {revealedSections >= 3 && <div className="dashboard-kpi-grid dashboard-reveal">{kpis.map(kpi => <KPI key={kpi.label} {...kpi} />)}</div>}
-        {revealedSections >= 5 && <Card className="dashboard-recommendations dashboard-reveal"><div className="dashboard-section-heading"><div><h3 className="dashboard-section-title">Recommended actions</h3><p>Suggested next checks based on the detected security signals.</p></div><FileSearch size={19} /></div><ol className="dashboard-checks">{(result.recommended_checks || []).map((c, i) => <li key={i}><span className={`dashboard-priority priority-${i === 0 ? 'high' : i < 3 ? 'medium' : 'low'}`}>{i === 0 ? 'High' : i < 3 ? 'Review' : 'Optional'}</span><CheckCircle2 size={17} /><span>{c}</span><ChevronRight size={16} /></li>)}</ol></Card>}
+        {revealedSections >= 5 && <Card className="dashboard-recommendations dashboard-reveal"><div className="dashboard-section-heading"><div><h3 className="dashboard-section-title">Recommended actions</h3><p>Suggested next checks based on the detected security signals.</p></div><FileSearch size={19} /></div><ol className="dashboard-checks">{(result.recommended_checks || []).map((c, i) => <li key={i}><CheckCircle2 size={17} /><span>{c}</span><ChevronRight size={16} /></li>)}</ol></Card>}
         {revealedSections >= 6 && <Card className="dashboard-technical dashboard-reveal"><div className="dashboard-section-heading"><div><h3 className="dashboard-section-title">Technical details</h3><p>Contract and permission signals returned by the analysis provider.</p></div><Code2 size={19} /></div><InfoGrid normalizedSignals={result.normalized_signals} technicalData={result.technical_data} chainName={chainName} address={addressInput.trim()} /><details className="dashboard-raw"><summary>Raw GoPlus response</summary><pre>{JSON.stringify(result.technical_data, null, 2)}</pre></details></Card>}
       </main><aside className="dashboard-secondary-column">
         {revealedSections >= 3 && <Card className="dashboard-radar-card dashboard-reveal"><h3 className="dashboard-section-title">Security posture</h3><p className="dashboard-card-caption">Risk resistance across key on-chain dimensions.</p><SecurityRadar triggeredRules={result.triggered_rules} /></Card>}

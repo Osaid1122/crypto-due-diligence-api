@@ -18,6 +18,11 @@ const WORKFLOW_STEPS = [
   'Generating AI summary',
 ];
 
+// Severity ordering mirrors the backend (Critical > High > Medium > Low). Used
+// to rank assets severity-first so a Critical holding is never ordered below a
+// lower-severity one just because it carries a smaller numeric score.
+const RISK_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+
 function formatCurrency(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return null;
@@ -143,52 +148,36 @@ export default function WalletScanner() {
       return;
     }
 
-    console.log('API called', { requestId, address: trimmed });
     setStatus('loading');
     setError('');
     setNotice('');
     setResult(null);
- 
+
     try {
       const response = await analyzeWallet(trimmed, inputChainType);
-      console.log('API returned', { requestId, response });
-      console.log('Returned JSON', { requestId, json: JSON.stringify(response) });
 
       if (requestId !== requestIdRef.current) {
         return;
       }
 
       const normalized = normalizeAnalysisResponse(response);
-      console.log('Workflow state', { requestId, state: normalized.state });
-      console.log('Portfolio state', {
-        requestId,
-        hasAssets: Array.isArray(response?.assets) ? response.assets.length : 0,
-        assetCount: response?.assets?.length ?? 0,
-        hasSummary: Boolean(response?.summary),
-        hasScore: response?.portfolio_score != null || response?.risk_score != null,
-      });
-      console.log('Summary state', { requestId, summary: response?.summary ?? 'n/a' });
-      console.log('Score state', { requestId, score: response?.portfolio_score ?? response?.risk_score ?? 'n/a' });
 
       if (!normalized.ok) {
         setStatus('error');
         setError(normalized.error);
-        console.log('Final state transition', { requestId, state: normalized.state, message: normalized.error });
         return;
       }
 
       setResult(normalized.data);
       setStatus('success');
       setNotice('Live analysis completed from the wallet analysis workflow.');
-      console.log('Final state transition', { requestId, state: 'SUCCESS', summary: normalized.data?.summary });
     } catch (err) {
       if (requestId !== requestIdRef.current) {
         return;
       }
-      console.log('API returned', { requestId, error: err });
+      console.error('Wallet analysis failed:', err?.message || err);
       setStatus('error');
       setError(err?.message || 'Unable to analyze this wallet right now.');
-      console.log('Final state transition', { requestId, state: 'ERROR', message: err?.message || 'Unable to analyze this wallet right now.' });
     }
   }, []);
 
@@ -298,16 +287,25 @@ export default function WalletScanner() {
   const assetRows = (result?.assets || []).map((asset) => {
     const symbol = asset.symbol || '';
     const name = asset.name || asset.address || 'Unknown asset';
-    const lowerName = name.toLowerCase();
-    const lowerSymbol = symbol.toLowerCase();
-    const isNative = ['eth', 'sol', 'ethereum', 'solana'].some((value) => lowerSymbol === value || lowerName.includes(value));
-    const rawScore = asset.risk_score != null && asset.risk_score !== '' ? Number(asset.risk_score) : NaN;
-    const hasNumericScore = Number.isFinite(rawScore) && !isNative;
-    const bucket = hasNumericScore
-      ? rawScore <= 30 ? 'Low' : rawScore <= 70 ? 'Medium' : 'High'
-      : 'Unscored';
+    // Native status comes from the backend's explicit is_native flag, never
+    // inferred from the name/symbol — inferring it flagged any ERC-20 whose
+    // name merely contained "eth"/"sol" (e.g. Tether/USDT) as a native asset.
+    const isNative = asset.is_native === true;
+    const analyzed = asset.analysis_status === 'analyzed';
+    // Only treat the score as numeric when the backend actually analyzed the
+    // asset — missing != zero. An unavailable/native asset has no score.
+    const rawScore = analyzed && asset.risk_score != null && asset.risk_score !== ''
+      ? Number(asset.risk_score)
+      : NaN;
+    const hasNumericScore = Number.isFinite(rawScore);
+    // Trust the backend's risk_level as the source of truth for severity — do
+    // not recompute a band from the numeric score. Native/unavailable assets
+    // arrive as "Unscored"; analyzed ones as Low/Medium/High/Critical.
+    const bucket = isNative
+      ? 'Unscored'
+      : ['Low', 'Medium', 'High', 'Critical'].includes(asset.risk_level) ? asset.risk_level : 'Unscored';
     const score = isNative ? 'N/A' : hasNumericScore ? `${rawScore}/100` : '--';
-    const risk = isNative ? 'Native Asset' : bucket === 'Unscored' ? 'Unscored' : asset.risk_level || bucket;
+    const risk = isNative ? 'Native Asset' : bucket;
     const reason = isNative
       ? 'Native asset — contract analysis not applicable'
       : asset.analysis_status === 'unavailable'
@@ -348,8 +346,13 @@ export default function WalletScanner() {
   const portfolioScoreDisplay = backendScoreDisplay ?? contractScoreDisplay;
   const scoreBreakdownScore = portfolioScoreDisplay;
   const scoreBreakdownLabel = backendScoreValue != null ? 'Safety score' : 'Average token safety';
-  const backendRiskLevel = backendScoreValue != null
-    ? backendScoreValue >= 80 ? 'Low' : backendScoreValue >= 60 ? 'Medium' : backendScoreValue >= 40 ? 'High' : 'Critical'
+  // Trust the backend's risk_level verbatim — it is the source of truth and is
+  // already severity-floored (a single dangerous holding cannot be averaged away
+  // by clean ones). Do NOT re-derive the band from the numeric score: that both
+  // duplicated the backend's own thresholds and turned an empty/errored score of
+  // 0 into a false "Critical". The numeric score above is kept for display only.
+  const backendRiskLevel = ['Low', 'Medium', 'High', 'Critical'].includes(result?.risk_level)
+    ? result.risk_level
     : null;
   const contractRiskLevel = contractScore != null
     ? contractScore >= 80 ? 'Low' : contractScore >= 60 ? 'Medium' : contractScore >= 40 ? 'High' : 'Critical'
@@ -365,15 +368,17 @@ export default function WalletScanner() {
       if (asset.bucket === 'Low') counts.low += 1;
       else if (asset.bucket === 'Medium') counts.medium += 1;
       else if (asset.bucket === 'High') counts.high += 1;
+      else if (asset.bucket === 'Critical') counts.critical += 1;
       else counts.unscored += 1;
       return counts;
     },
-    { low: 0, medium: 0, high: 0, unscored: 0 }
+    { low: 0, medium: 0, high: 0, critical: 0, unscored: 0 }
   );
   const riskDistributionData = [
     { name: 'Low', value: riskCounts.low, fill: '#22C55E' },
     { name: 'Medium', value: riskCounts.medium, fill: '#F59E0B' },
     { name: 'High', value: riskCounts.high, fill: '#EF4444' },
+    { name: 'Critical', value: riskCounts.critical, fill: '#B91C3C' },
     { name: 'Unscored', value: riskCounts.unscored, fill: '#9CA3AF' },
   ].filter((entry) => entry.value > 0);
   const riskLegend = riskDistributionData.map((item) => ({
@@ -385,12 +390,7 @@ export default function WalletScanner() {
   const filteredAssetRows = assetRows.filter((asset) => {
     const query = tokenSearch.trim().toLowerCase();
     const matchesQuery = !query || asset.name.toLowerCase().includes(query) || asset.symbol.toLowerCase().includes(query);
-    const matchesFilter =
-      riskFilter === 'All' ||
-      (riskFilter === 'Low' && asset.bucket === 'Low') ||
-      (riskFilter === 'Medium' && asset.bucket === 'Medium') ||
-      (riskFilter === 'High' && asset.bucket === 'High') ||
-      (riskFilter === 'Unscored' && asset.bucket === 'Unscored');
+    const matchesFilter = riskFilter === 'All' || asset.bucket === riskFilter;
     return matchesQuery && matchesFilter;
   });
 
@@ -443,7 +443,14 @@ export default function WalletScanner() {
 
   const highestRiskAsset = assetRows
     .filter((asset) => asset.numericScore != null)
-    .sort((a, b) => b.numericScore - a.numericScore)[0];
+    // Severity-first: rank by the backend risk level (Critical > High > ...),
+    // and only use the numeric score to break ties within the same level. A
+    // Critical holding must never sort below a High one that happens to carry a
+    // larger numeric score.
+    .sort((a, b) => {
+      const rankDiff = (RISK_RANK[b.bucket] ?? 0) - (RISK_RANK[a.bucket] ?? 0);
+      return rankDiff !== 0 ? rankDiff : b.numericScore - a.numericScore;
+    })[0];
   const highestRiskAssetName = highestRiskAsset ? truncateMiddle(highestRiskAsset.name, 30) : 'No scored asset available';
   const highestRiskAssetScore = highestRiskAsset ? `${highestRiskAsset.numericScore}/100` : null;
 
@@ -733,16 +740,25 @@ export default function WalletScanner() {
                   />
                 </div>
                 <div className="wallet-risk-tabs">
-                  {['All', 'High', 'Medium', 'Low', 'Unscored'].map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      className={`wallet-risk-tab ${riskFilter === tab ? 'is-active' : ''}`}
-                      onClick={() => setRiskFilter(tab)}
-                    >
-                      {tab} {tab === 'All' ? `(${assetRows.length})` : tab === 'High' ? `(${riskCounts.high})` : tab === 'Medium' ? `(${riskCounts.medium})` : tab === 'Low' ? `(${riskCounts.low})` : `(${riskCounts.unscored})`}
-                    </button>
-                  ))}
+                  {['All', 'Critical', 'High', 'Medium', 'Low', 'Unscored'].map((tab) => {
+                    const tabCount = tab === 'All'
+                      ? assetRows.length
+                      : tab === 'Critical' ? riskCounts.critical
+                      : tab === 'High' ? riskCounts.high
+                      : tab === 'Medium' ? riskCounts.medium
+                      : tab === 'Low' ? riskCounts.low
+                      : riskCounts.unscored;
+                    return (
+                      <button
+                        key={tab}
+                        type="button"
+                        className={`wallet-risk-tab ${riskFilter === tab ? 'is-active' : ''}`}
+                        onClick={() => setRiskFilter(tab)}
+                      >
+                        {tab} ({tabCount})
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               {filteredAssetRows.length > 0 ? (

@@ -736,6 +736,11 @@
   background: rgba(239, 68, 68, 0.12);
 }
 
+.wallet-risk-badge.risk-critical {
+  color: #FCA5A5;
+  background: rgba(185, 28, 60, 0.22);
+}
+
 .wallet-risk-badge.risk-unscored,
 .wallet-risk-badge.risk-native,
 .wallet-risk-badge.risk-unknown {

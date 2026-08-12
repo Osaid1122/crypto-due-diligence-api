@@ -78,6 +78,7 @@ class TokenAnalyzeResponse(BaseModel):
     chain_id: int | None = Field(None, description="EVM chain ID, or null for Solana.", examples=[1])
     risk_score: int = Field(..., description="Deterministic token risk score from 0 (lowest) to 100 (highest).", examples=[18])
     risk_level: str = Field(..., description="Human-readable band derived from the deterministic risk score.", examples=["Low"])
+    max_severity: str = Field("None", description="Highest severity among the risk rules that actually fired (Critical > High > Medium > Low > Informational; 'None' when nothing triggered). Computed by the scoring engine — surfaced here so consumers use the backend's severity rather than re-deriving one.", examples=["High"])
     confidence: float = Field(..., description="Share of expected security signals returned by the provider, from 0 to 1.", examples=[0.92])
     confidence_known_signals: int = Field(0, description="Number of expected security signals returned by the provider.", examples=[23])
     confidence_total_signals: int = Field(0, description="Total number of security signals evaluated for confidence.", examples=[25])
